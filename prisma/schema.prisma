@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+
+
+
+model Racket {
+  id        String   @id @default(cuid())
+  brand     String
+  model     String
+
+  headSize  Int
+  weight    Int
+  balance   Int?       // mm
+  pattern   String
+
+  // scores 1..10 (pour scoring)
+  power     Int
+  spin      Int
+  control   Int
+  comfort   Int
+
+  // compat niveau
+  levelMin  Int
+  levelMax  Int
+
+  createdAt DateTime @default(now())
+}
+
+model StringItem {
+  id        String   @id @default(cuid())
+  brand     String
+  model     String
+  kind      String      // "poly" | "multi" | "hybrid"
+  gauge     Float
+
+  // scores 1..10
+  power     Int
+  spin      Int
+  control   Int
+  comfort   Int
+  durability Int        // 1..10
+
+  createdAt DateTime @default(now())
+}

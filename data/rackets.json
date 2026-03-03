@@ -1,0 +1,45 @@
+[
+  { "brand":"Babolat","model":"Pure Aero 100 (2026)","headSize":100,"weight":300,"balance":320,"pattern":"16x19","power":8,"spin":10,"control":6,"comfort":6,"levelMin":4,"levelMax":10 },
+  { "brand":"Babolat","model":"Pure Aero 98 (2026)","headSize":98,"weight":305,"balance":315,"pattern":"16x20","power":7,"spin":9,"control":7,"comfort":6,"levelMin":5,"levelMax":10 },
+  { "brand":"Babolat","model":"Pure Aero Team 100 (2026)","headSize":100,"weight":285,"balance":320,"pattern":"16x19","power":7,"spin":9,"control":6,"comfort":7,"levelMin":2,"levelMax":10 },
+  { "brand":"Babolat","model":"Pure Aero Lite 100 (2026)","headSize":100,"weight":270,"balance":330,"pattern":"16x19","power":6,"spin":9,"control":6,"comfort":7,"levelMin":1,"levelMax":10 },
+
+  { "brand":"Babolat","model":"Pure Drive 100 (2025)","headSize":100,"weight":300,"balance":320,"pattern":"16x19","power":10,"spin":7,"control":6,"comfort":6,"levelMin":4,"levelMax":10 },
+  { "brand":"Babolat","model":"Pure Drive 98 (2025)","headSize":98,"weight":305,"balance":325,"pattern":"16x20","power":9,"spin":7,"control":7,"comfort":6,"levelMin":5,"levelMax":10 },
+  { "brand":"Babolat","model":"Pure Drive Team 100 (2025)","headSize":100,"weight":285,"balance":320,"pattern":"16x19","power":9,"spin":7,"control":6,"comfort":6,"levelMin":2,"levelMax":10 },
+  { "brand":"Babolat","model":"Pure Drive Lite 100 (2025)","headSize":100,"weight":270,"balance":330,"pattern":"16x19","power":8,"spin":7,"control":6,"comfort":6,"levelMin":1,"levelMax":10 },
+
+  { "brand":"Babolat","model":"Pure Strike 98 16x19 (2024)","headSize":98,"weight":305,"balance":320,"pattern":"16x19","power":7,"spin":7,"control":9,"comfort":6,"levelMin":6,"levelMax":10 },
+  { "brand":"Babolat","model":"Pure Strike 98 16x20 (2024)","headSize":98,"weight":305,"balance":320,"pattern":"16x20","power":6,"spin":6,"control":10,"comfort":6,"levelMin":6,"levelMax":10 },
+  { "brand":"Babolat","model":"Pure Strike 100 16x19 (2024)","headSize":100,"weight":300,"balance":320,"pattern":"16x19","power":7,"spin":7,"control":8,"comfort":6,"levelMin":5,"levelMax":10 },
+
+  { "brand":"Yonex","model":"VCORE 100 (2026)","headSize":100,"weight":300,"balance":320,"pattern":"16x19","power":7,"spin":10,"control":7,"comfort":6,"levelMin":5,"levelMax":10 },
+  { "brand":"Yonex","model":"VCORE 100L (2026)","headSize":100,"weight":280,"balance":330,"pattern":"16x19","power":6,"spin":9,"control":6,"comfort":6,"levelMin":2,"levelMax":10 },
+  { "brand":"Yonex","model":"VCORE 98 (2026)","headSize":98,"weight":305,"balance":315,"pattern":"16x19","power":6,"spin":9,"control":8,"comfort":6,"levelMin":6,"levelMax":10 },
+
+  { "brand":"Yonex","model":"EZONE 100 (2025)","headSize":100,"weight":300,"balance":320,"pattern":"16x19","power":9,"spin":7,"control":6,"comfort":7,"levelMin":4,"levelMax":10 },
+  { "brand":"Yonex","model":"EZONE 100L (2025)","headSize":100,"weight":285,"balance":325,"pattern":"16x19","power":8,"spin":7,"control":6,"comfort":7,"levelMin":2,"levelMax":10 },
+  { "brand":"Yonex","model":"EZONE 98 (2025)","headSize":98,"weight":305,"balance":315,"pattern":"16x19","power":8,"spin":6,"control":7,"comfort":7,"levelMin":5,"levelMax":10 },
+
+  { "brand":"Yonex","model":"PERCEPT 100 (2023/2024)","headSize":100,"weight":300,"balance":320,"pattern":"16x19","power":6,"spin":6,"control":9,"comfort":8,"levelMin":6,"levelMax":10 },
+  { "brand":"Yonex","model":"PERCEPT 97 (2023/2024)","headSize":97,"weight":310,"balance":310,"pattern":"16x19","power":5,"spin":5,"control":10,"comfort":8,"levelMin":7,"levelMax":10 },
+
+  { "brand":"Head","model":"Speed MP (2026)","headSize":100,"weight":300,"balance":320,"pattern":"16x19","power":8,"spin":7,"control":7,"comfort":7,"levelMin":5,"levelMax":10 },
+  { "brand":"Head","model":"Speed MP L (2026)","headSize":100,"weight":285,"balance":325,"pattern":"16x19","power":7,"spin":7,"control":6,"comfort":7,"levelMin":2,"levelMax":10 },
+  { "brand":"Head","model":"Speed Team (2026)","headSize":100,"weight":270,"balance":325,"pattern":"16x19","power":7,"spin":7,"control":6,"comfort":7,"levelMin":1,"levelMax":10 },
+
+  { "brand":"Head","model":"Extreme MP (2024)","headSize":100,"weight":300,"balance":320,"pattern":"16x19","power":7,"spin":10,"control":6,"comfort":6,"levelMin":5,"levelMax":10 },
+  { "brand":"Head","model":"Extreme MP L (2024)","headSize":100,"weight":280,"balance":325,"pattern":"16x19","power":6,"spin":9,"control":6,"comfort":6,"levelMin":2,"levelMax":10 },
+
+  { "brand":"Wilson","model":"Blade 98 16x19 (v9)","headSize":98,"weight":305,"balance":320,"pattern":"16x19","power":6,"spin":7,"control":10,"comfort":7,"levelMin":7,"levelMax":10 },
+  { "brand":"Wilson","model":"Blade 100 16x19 (v9)","headSize":100,"weight":300,"balance":320,"pattern":"16x19","power":7,"spin":7,"control":9,"comfort":7,"levelMin":6,"levelMax":10 },
+  { "brand":"Wilson","model":"Blade 100L 16x19 (v9)","headSize":100,"weight":285,"balance":330,"pattern":"16x19","power":7,"spin":7,"control":8,"comfort":7,"levelMin":2,"levelMax":10 },
+
+  { "brand":"Wilson","model":"Clash 100 v2","headSize":100,"weight":295,"balance":310,"pattern":"16x19","power":7,"spin":7,"control":6,"comfort":10,"levelMin":2,"levelMax":10 },
+  { "brand":"Wilson","model":"Clash 100L v2","headSize":100,"weight":280,"balance":315,"pattern":"16x19","power":6,"spin":6,"control":5,"comfort":10,"levelMin":1,"levelMax":10 },
+
+  { "brand":"Tecnifibre","model":"TFight 300 (2025)","headSize":98,"weight":300,"balance":320,"pattern":"16x19","power":7,"spin":7,"control":9,"comfort":6,"levelMin":6,"levelMax":10 },
+  { "brand":"Tecnifibre","model":"TFight 305 (2025)","headSize":98,"weight":305,"balance":315,"pattern":"18x19","power":6,"spin":6,"control":10,"comfort":6,"levelMin":7,"levelMax":10 },
+
+  { "brand":"ProKennex","model":"Ki 10 (300)","headSize":100,"weight":300,"balance":320,"pattern":"16x19","power":7,"spin":7,"control":6,"comfort":10,"levelMin":3,"levelMax":10 }
+]
