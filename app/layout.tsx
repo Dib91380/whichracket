@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 
   description:
     "Smart tennis racket and string recommendation tool. Answer a few questions about your level and playing style to find the perfect racket and string setup.",
-  
+
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
@@ -75,8 +75,30 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+
         <Analytics />
         <SpeedInsights />
+
+        {/* Schema.org structured data for Google */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebApplication",
+              name: "WhichRacket",
+              url: "https://whichracket.com",
+              applicationCategory: "SportsApplication",
+              operatingSystem: "All",
+              description:
+                "Smart tennis racket and string recommendation tool based on your level and playing style.",
+              creator: {
+                "@type": "Person",
+                name: "Nicolas Dib",
+              },
+            }),
+          }}
+        />
       </body>
     </html>
   );
