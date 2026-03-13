@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+type Lang = "fr" | "en";
 
 type FftRank =
   | "NC"
@@ -14,10 +16,9 @@ type Sex = "male" | "female" | "other" | "prefer_not";
 type RecommendPayload = {
   fftRank: FftRank;
 
-  // Profil “physique”
-  age: number;      // 10..80
+  age: number;
   sex: Sex;
-  heightCm: number; // 120..220
+  heightCm: number;
 
   frequency: "1-2" | "3-4" | "5+";
   goal: "spin" | "control" | "power" | "comfort";
@@ -32,7 +33,7 @@ type RecommendPayload = {
   likes: string;
   dislikes: string;
 
-  targetWeight: number; // préférence perso (curseur)
+  targetWeight: number;
   headSize: 98 | 100 | 102 | "dontknow";
   racketFeel: "power" | "comfort" | "spin" | "mix";
 
@@ -50,17 +51,13 @@ type RacketResult = {
   weight: number;
   balance?: number | null;
   pattern: string;
-
   power: number;
   spin: number;
   control: number;
   comfort: number;
-
   levelMin: number;
   levelMax: number;
-
   createdAt: string;
-
   _score?: number;
 };
 
@@ -70,15 +67,12 @@ type StringResult = {
   model: string;
   kind: string;
   gauge: number;
-
   power: number;
   spin: number;
   control: number;
   comfort: number;
   durability: number;
-
   createdAt: string;
-
   _score?: number;
 };
 
@@ -93,15 +87,15 @@ type ApiResult = {
   };
 };
 
-// Résultat IA attendu côté UI
-type AiPick = { title: string; reasons: string[] };
+type AiPick = {
+  title: string;
+  reasons: string[];
+};
 
 type AiResult = {
   error?: string;
-
-  rackets?: AiPick[];  // max 3
-  strings?: AiPick[];  // max 3
-
+  rackets?: AiPick[];
+  strings?: AiPick[];
   recommendedTensionKg?: number;
   recommendedWeightG?: number;
   notes?: string[];
@@ -115,20 +109,222 @@ const FFT_OPTIONS: FftRank[] = [
   "0", "-2/6", "-4/6", "-15",
 ];
 
-// ---- UI helpers (classes)
 const card =
   "rounded-3xl border border-white/15 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur";
 const label = "text-sm font-medium text-white/90";
 const input =
   "rounded-2xl border border-white/15 bg-emerald-950/30 p-3 text-white placeholder:text-white/40 outline-none transition focus:border-lime-300/70 focus:ring-2 focus:ring-lime-300/20";
 
+const translations = {
+  fr: {
+    badge: "Tennis recommendation engine",
+    mainTitle: "Whichracket",
+    switchFr: "FR",
+    switchEn: "EN",
+
+    ctaMain: "Trouver ma raquette + mon cordage",
+    loading: "Analyse en cours...",
+
+    profile: "Profil",
+    age: "Âge",
+    sex: "Sexe",
+    height: "Taille (cm)",
+
+    preferNot: "Je préfère ne pas dire",
+    male: "Homme",
+    female: "Femme",
+    other: "Autre",
+
+    playerProfile: "Profil joueur",
+    fftRank: "Classement FFT",
+    frequency: "Fréquence",
+    priority: "Priorité",
+    stroke: "Frappe",
+    gameType: "Type de jeu",
+
+    freq12: "1–2 fois / semaine",
+    freq34: "3–4 fois / semaine",
+    freq5: "5+ fois / semaine",
+
+    goalSpin: "Lift / Spin",
+    goalControl: "Contrôle",
+    goalPower: "Puissance",
+    goalComfort: "Confort",
+
+    styleLift: "Lift",
+    styleFlat: "À plat",
+    styleMix: "Mix",
+
+    gameDefense: "Défense / Contreur",
+    gameAttack: "Attaque",
+    gameServeVolley: "Service-volée",
+    gameComplete: "Complet",
+
+    arm: "Bras",
+    armPainLabel: "J’ai parfois mal au bras/épaule/poignet",
+    comfortHint:
+      "Gêne au bras : on privilégie un setup plus confort (cordage plus doux / tension plus basse).",
+
+    currentRacket: "Ta raquette actuelle",
+    firstRacket:
+      "C’est ma première raquette (je n’en ai jamais vraiment utilisé)",
+    currentModel: "Modèle actuel",
+    currentModelPlaceholder: "Ex: Blade 98 v9, Pure Aero, Speed MP...",
+    likes: "Ce que tu aimes",
+    likesPlaceholder: "Ex: contrôle, stabilité, sensations...",
+    dislikes: "Ce que tu veux améliorer",
+    dislikesPlaceholder: "Ex: profondeur, puissance, lift, confort...",
+
+    preferences: "Préférences raquette",
+    targetWeight: "Poids cible (préférence)",
+    headSize: "Tamis",
+    head98: "98 (plus précis)",
+    head100: "100 (standard)",
+    head102: "102+ (plus tolérant)",
+    dontKnow: "Je ne sais pas",
+    racketFeel: "Sensations recherchées",
+    feelPower: "Puissance",
+    feelComfort: "Confort",
+    feelSpin: "Spin",
+    feelMix: "Mix / équilibrée",
+
+    string: "Cordage",
+    stringType: "Type",
+    poly: "Polyester monofilament",
+    multi: "Multifilament",
+    hybrid: "Hybride",
+
+    breaksOften: "Tu casses souvent ?",
+    yes: "Oui",
+    no: "Non",
+
+    stringPriority: "Priorité",
+    tensionCurrent: "Tension actuelle (repère)",
+
+    launchAnalysis: "Lancer l’analyse",
+
+    finalChoice: "Choix final",
+    advisedWeight: "Poids conseillé",
+    advisedTension: "Tension recommandée",
+    rackets: "Raquettes",
+    strings: "Cordages",
+    notes: "Notes",
+    noRacket: "Aucune raquette renvoyée.",
+    noString: "Aucun cordage renvoyé.",
+
+    error: "Erreur",
+    alertError: "Erreur, ouvre F12 pour voir le détail.",
+
+    footer:
+      "Projet personnel à but expérimental, sans affiliation avec aucune marque, feedback sur instagram: nicolas.dib_",
+  },
+  en: {
+    badge: "Tennis recommendation engine",
+    mainTitle: "Whichracket",
+    switchFr: "FR",
+    switchEn: "EN",
+
+    ctaMain: "Find my racket + my string",
+    loading: "Analyzing...",
+
+    profile: "Profile",
+    age: "Age",
+    sex: "Sex",
+    height: "Height (cm)",
+
+    preferNot: "Prefer not to say",
+    male: "Male",
+    female: "Female",
+    other: "Other",
+
+    playerProfile: "Player profile",
+    fftRank: "FFT ranking",
+    frequency: "Frequency",
+    priority: "Priority",
+    stroke: "Stroke style",
+    gameType: "Playing style",
+
+    freq12: "1–2 times / week",
+    freq34: "3–4 times / week",
+    freq5: "5+ times / week",
+
+    goalSpin: "Spin",
+    goalControl: "Control",
+    goalPower: "Power",
+    goalComfort: "Comfort",
+
+    styleLift: "Topspin",
+    styleFlat: "Flat",
+    styleMix: "Mixed",
+
+    gameDefense: "Defense / Counterpuncher",
+    gameAttack: "Attacking",
+    gameServeVolley: "Serve and volley",
+    gameComplete: "All-court",
+
+    arm: "Arm",
+    armPainLabel: "I sometimes have pain in my arm/shoulder/wrist",
+    comfortHint:
+      "Arm sensitivity detected: we prioritize a more comfortable setup (softer string / lower tension).",
+
+    currentRacket: "Your current racket",
+    firstRacket: "This is my first racket (I have never really used one before)",
+    currentModel: "Current model",
+    currentModelPlaceholder: "Ex: Blade 98 v9, Pure Aero, Speed MP...",
+    likes: "What you like",
+    likesPlaceholder: "Ex: control, stability, feel...",
+    dislikes: "What you want to improve",
+    dislikesPlaceholder: "Ex: depth, power, spin, comfort...",
+
+    preferences: "Racket preferences",
+    targetWeight: "Target weight (preference)",
+    headSize: "Head size",
+    head98: "98 (more precise)",
+    head100: "100 (standard)",
+    head102: "102+ (more forgiving)",
+    dontKnow: "I don't know",
+    racketFeel: "Desired feel",
+    feelPower: "Power",
+    feelComfort: "Comfort",
+    feelSpin: "Spin",
+    feelMix: "Balanced",
+
+    string: "Strings",
+    stringType: "Type",
+    poly: "Polyester monofilament",
+    multi: "Multifilament",
+    hybrid: "Hybrid",
+
+    breaksOften: "Do you break strings often?",
+    yes: "Yes",
+    no: "No",
+
+    stringPriority: "Priority",
+    tensionCurrent: "Current tension (reference)",
+
+    launchAnalysis: "Run analysis",
+
+    finalChoice: "Final choice",
+    advisedWeight: "Recommended weight",
+    advisedTension: "Recommended tension",
+    rackets: "Rackets",
+    strings: "Strings",
+    notes: "Notes",
+    noRacket: "No racket returned.",
+    noString: "No string returned.",
+
+    error: "Error",
+    alertError: "Error, open F12 to see details.",
+
+    footer:
+      "Personal experimental project, not affiliated with any brand. Feedback on instagram: nicolas.dib_",
+  },
+} as const;
+
 export default function Home() {
+  const [lang, setLang] = useState<Lang>("fr");
   const [loading, setLoading] = useState(false);
-
-  // shortlist DB (cachée)
   const [data, setData] = useState<ApiResult | null>(null);
-
-  // affichage final = IA
   const [ai, setAi] = useState<AiResult | null>(null);
 
   const [form, setForm] = useState<RecommendPayload>({
@@ -144,7 +340,7 @@ export default function Home() {
     gameType: "attaque",
 
     armPain: false,
-    comfortNeed: 5, // (gardé pour compat logique, pas affiché)
+    comfortNeed: 5,
 
     currentRacket: "",
     firstRacket: false,
@@ -161,14 +357,34 @@ export default function Home() {
     tensionKg: 23,
   });
 
+  const t = translations[lang];
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("whichracket-lang") as Lang | null;
+
+    if (saved === "fr" || saved === "en") {
+      setLang(saved);
+      return;
+    }
+
+    const browserLang = navigator.language.toLowerCase();
+    if (browserLang.startsWith("en")) {
+      setLang("en");
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("whichracket-lang", lang);
+  }, [lang]);
+
   function update<K extends keyof RecommendPayload>(key: K, value: RecommendPayload[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   const comfortHint = useMemo(() => {
     if (!form.armPain) return null;
-    return "Gêne au bras : on privilégie un setup plus confort (cordage plus doux / tension plus basse).";
-  }, [form.armPain]);
+    return t.comfortHint;
+  }, [form.armPain, t.comfortHint]);
 
   async function submit() {
     setLoading(true);
@@ -176,7 +392,6 @@ export default function Home() {
     setAi(null);
 
     try {
-      // 1) shortlist DB
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -185,19 +400,19 @@ export default function Home() {
 
       if (!res.ok) {
         const txt = await res.text();
-        throw new Error(`API /recommend erreur (${res.status}) : ${txt}`);
+        throw new Error(`API /recommend error (${res.status}) : ${txt}`);
       }
 
       const json = (await res.json()) as ApiResult;
       setData(json);
 
-      // 2) arbitrage IA (shortlist limitée)
       const aiRes = await fetch("/api/recommend/recommend-ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          lang,
           questionnaire: form,
-          recommendedWeightG: form.targetWeight, // ✅
+          recommendedWeightG: form.targetWeight,
           rackets: (json.rackets ?? []).slice(0, 5),
           strings: (json.strings ?? []).slice(0, 5),
           computed: {
@@ -209,14 +424,14 @@ export default function Home() {
 
       if (!aiRes.ok) {
         const txt = await aiRes.text();
-        throw new Error(`API IA erreur (${aiRes.status}) : ${txt}`);
+        throw new Error(`AI API error (${aiRes.status}) : ${txt}`);
       }
 
       const aiJson = (await aiRes.json()) as AiResult;
       setAi(aiJson);
     } catch (e) {
       console.error(e);
-      alert("Erreur fais f12.");
+      alert(t.alertError);
     } finally {
       setLoading(false);
     }
@@ -225,7 +440,6 @@ export default function Home() {
   return (
     <main className="min-h-screen text-white">
       <div className="relative min-h-screen bg-gradient-to-b from-emerald-950 via-emerald-900 to-slate-950">
-        {/* Court lines */}
         <div className="pointer-events-none absolute inset-0 opacity-25">
           <div className="absolute left-1/2 top-0 h-full w-[2px] -translate-x-1/2 bg-white/40" />
           <div className="absolute left-8 right-8 top-24 h-[2px] bg-white/40" />
@@ -234,30 +448,49 @@ export default function Home() {
           <div className="absolute right-8 top-24 h-[calc(100%-12rem)] w-[2px] bg-white/25" />
         </div>
 
-        {/* Tennis balls (blur circles) */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute -top-16 -left-16 h-72 w-72 rounded-full bg-lime-300/20 blur-3xl" />
           <div className="absolute top-40 right-10 h-64 w-64 rounded-full bg-lime-300/15 blur-3xl" />
           <div className="absolute bottom-10 left-1/3 h-72 w-72 rounded-full bg-lime-300/10 blur-3xl" />
-          {/* seams hint */}
           <div className="absolute top-20 left-10 h-48 w-48 rotate-12 rounded-full border border-white/15 blur-[0.5px]" />
           <div className="absolute bottom-24 right-16 h-40 w-40 -rotate-12 rounded-full border border-white/10 blur-[0.5px]" />
         </div>
 
         <div className="relative mx-auto max-w-3xl px-6 py-10">
-          {/* Header */}
           <div className="flex flex-col gap-4">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/90">
-              <span className="h-2 w-2 rounded-full bg-lime-300" />
-              Tennis recommendation engine
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/90">
+                <span className="h-2 w-2 rounded-full bg-lime-300" />
+                {t.badge}
+              </div>
+
+              <div className="inline-flex items-center rounded-full border border-white/15 bg-white/5 p-1">
+                <button
+                  onClick={() => setLang("fr")}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                    lang === "fr"
+                      ? "bg-lime-300 text-emerald-950"
+                      : "text-white/80 hover:bg-white/10"
+                  }`}
+                >
+                  {t.switchFr}
+                </button>
+                <button
+                  onClick={() => setLang("en")}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                    lang === "en"
+                      ? "bg-lime-300 text-emerald-950"
+                      : "text-white/80 hover:bg-white/10"
+                  }`}
+                >
+                  {t.switchEn}
+                </button>
+              </div>
             </div>
 
             <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
-              Whichracket <span className="text-lime-300">🎾</span>
+              {t.mainTitle} <span className="text-lime-300">🎾</span>
             </h1>
-
-            <p className="text-sm text-white/75">
-            </p>
 
             <button
               onClick={submit}
@@ -267,22 +500,18 @@ export default function Home() {
               <span className="mr-2 inline-flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-950/10">
                 {loading ? "⏳" : "🏁"}
               </span>
-              {loading ? "Analyse en cours..." : "Trouver ma raquette + mon cordage"}
+              {loading ? t.loading : t.ctaMain}
               <span className="ml-2 opacity-70 transition group-hover:translate-x-0.5">→</span>
             </button>
           </div>
 
-          {/* FORM */}
           <div className="mt-8 grid gap-6">
-            {/* 0) Profil physique */}
             <section className={card}>
-              <h2 className="text-lg font-semibold">Profil</h2>
-              <p className="mt-1 text-xs text-white/70">
-              </p>
+              <h2 className="text-lg font-semibold">{t.profile}</h2>
 
               <div className="mt-5 grid gap-4 md:grid-cols-3">
                 <div className="grid gap-2">
-                  <label className={label}>Âge</label>
+                  <label className={label}>{t.age}</label>
                   <input
                     type="number"
                     min={10}
@@ -294,21 +523,21 @@ export default function Home() {
                 </div>
 
                 <div className="grid gap-2">
-                  <label className={label}>Sexe</label>
+                  <label className={label}>{t.sex}</label>
                   <select
                     className={input}
                     value={form.sex}
                     onChange={(e) => update("sex", e.target.value as Sex)}
                   >
-                    <option value="prefer_not">Je préfère ne pas dire</option>
-                    <option value="male">Homme</option>
-                    <option value="female">Femme</option>
-                    <option value="other">Autre</option>
+                    <option value="prefer_not">{t.preferNot}</option>
+                    <option value="male">{t.male}</option>
+                    <option value="female">{t.female}</option>
+                    <option value="other">{t.other}</option>
                   </select>
                 </div>
 
                 <div className="grid gap-2">
-                  <label className={label}>Taille (cm)</label>
+                  <label className={label}>{t.height}</label>
                   <input
                     type="number"
                     min={120}
@@ -321,15 +550,12 @@ export default function Home() {
               </div>
             </section>
 
-            {/* 1) Profil joueur */}
             <section className={card}>
-              <h2 className="text-lg font-semibold">Profil joueur</h2>
-              <p className="mt-1 text-xs text-white/70">
-              </p>
+              <h2 className="text-lg font-semibold">{t.playerProfile}</h2>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <div className="grid gap-2">
-                  <label className={label}>Classement FFT</label>
+                  <label className={label}>{t.fftRank}</label>
                   <select
                     className={input}
                     value={form.fftRank}
@@ -344,66 +570,71 @@ export default function Home() {
                 </div>
 
                 <div className="grid gap-2">
-                  <label className={label}>Fréquence</label>
+                  <label className={label}>{t.frequency}</label>
                   <select
                     className={input}
                     value={form.frequency}
-                    onChange={(e) => update("frequency", e.target.value as RecommendPayload["frequency"])}
+                    onChange={(e) =>
+                      update("frequency", e.target.value as RecommendPayload["frequency"])
+                    }
                   >
-                    <option value="1-2">1–2 fois / semaine</option>
-                    <option value="3-4">3–4 fois / semaine</option>
-                    <option value="5+">5+ fois / semaine</option>
+                    <option value="1-2">{t.freq12}</option>
+                    <option value="3-4">{t.freq34}</option>
+                    <option value="5+">{t.freq5}</option>
                   </select>
                 </div>
 
                 <div className="grid gap-2">
-                  <label className={label}>Priorité</label>
+                  <label className={label}>{t.priority}</label>
                   <select
                     className={input}
                     value={form.goal}
-                    onChange={(e) => update("goal", e.target.value as RecommendPayload["goal"])}
+                    onChange={(e) =>
+                      update("goal", e.target.value as RecommendPayload["goal"])
+                    }
                   >
-                    <option value="spin">Lift / Spin</option>
-                    <option value="control">Contrôle</option>
-                    <option value="power">Puissance</option>
-                    <option value="comfort">Confort</option>
+                    <option value="spin">{t.goalSpin}</option>
+                    <option value="control">{t.goalControl}</option>
+                    <option value="power">{t.goalPower}</option>
+                    <option value="comfort">{t.goalComfort}</option>
                   </select>
                 </div>
 
                 <div className="grid gap-2">
-                  <label className={label}>Frappe</label>
+                  <label className={label}>{t.stroke}</label>
                   <select
                     className={input}
                     value={form.style}
-                    onChange={(e) => update("style", e.target.value as RecommendPayload["style"])}
+                    onChange={(e) =>
+                      update("style", e.target.value as RecommendPayload["style"])
+                    }
                   >
-                    <option value="lift">Lift</option>
-                    <option value="flat">À plat</option>
-                    <option value="mix">Mix</option>
+                    <option value="lift">{t.styleLift}</option>
+                    <option value="flat">{t.styleFlat}</option>
+                    <option value="mix">{t.styleMix}</option>
                   </select>
                 </div>
 
                 <div className="grid gap-2 md:col-span-2">
-                  <label className={label}>Type de jeu</label>
+                  <label className={label}>{t.gameType}</label>
                   <select
                     className={input}
                     value={form.gameType}
-                    onChange={(e) => update("gameType", e.target.value as RecommendPayload["gameType"])}
+                    onChange={(e) =>
+                      update("gameType", e.target.value as RecommendPayload["gameType"])
+                    }
                   >
-                    <option value="defense">Défense / Contreur</option>
-                    <option value="attaque">Attaque</option>
-                    <option value="servevolley">Service-volée</option>
-                    <option value="complet">Complet</option>
+                    <option value="defense">{t.gameDefense}</option>
+                    <option value="attaque">{t.gameAttack}</option>
+                    <option value="servevolley">{t.gameServeVolley}</option>
+                    <option value="complet">{t.gameComplete}</option>
                   </select>
                 </div>
               </div>
             </section>
 
-            {/* 2) Bras */}
             <section className={card}>
-              <h2 className="text-lg font-semibold">Bras</h2>
-              <p className="mt-1 text-xs text-white/70">
-              </p>
+              <h2 className="text-lg font-semibold">{t.arm}</h2>
 
               <div className="mt-5">
                 <label className="flex items-center gap-3 rounded-2xl border border-white/15 bg-emerald-950/20 p-4 text-sm">
@@ -413,7 +644,7 @@ export default function Home() {
                     onChange={(e) => update("armPain", e.target.checked)}
                     className="h-4 w-4 accent-lime-300"
                   />
-                  <span className="text-white">J’ai parfois mal au bras/épaule/poignet</span>
+                  <span className="text-white">{t.armPainLabel}</span>
                 </label>
               </div>
 
@@ -424,79 +655,73 @@ export default function Home() {
               )}
             </section>
 
-            {/* 3) Raquette actuelle */}
             <section className={card}>
-              <h2 className="text-lg font-semibold">Ta raquette actuelle</h2>
-              <p className="mt-1 text-xs text-white/70">
-              </p>
+              <h2 className="text-lg font-semibold">{t.currentRacket}</h2>
 
-            <label className="flex items-center gap-3 rounded-2xl border border-white/15 bg-emerald-950/20 p-4 text-sm">
-              <input
-                type="checkbox"
-                checked={form.firstRacket}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  update("firstRacket", checked);
+              <label className="flex items-center gap-3 rounded-2xl border border-white/15 bg-emerald-950/20 p-4 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.firstRacket}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    update("firstRacket", checked);
 
-                  if (checked) {
-                    update("currentRacket", "");
-                    update("likes", "");
-                    update("dislikes", "");
-                  }
-                }}
-                className="h-4 w-4 accent-lime-300"
-              />
-              <span className="text-white">
-                C’est ma première raquette (je n’en ai jamais vraiment utilisé)
-              </span>
-            </label>
+                    if (checked) {
+                      update("currentRacket", "");
+                      update("likes", "");
+                      update("dislikes", "");
+                    }
+                  }}
+                  className="h-4 w-4 accent-lime-300"
+                />
+                <span className="text-white">{t.firstRacket}</span>
+              </label>
 
-            {!form.firstRacket && (
-              <>
-                <div className="grid gap-2">
-                  <label className={label}>Modèle actuel</label>
-                  <input
-                    className={input}
-                    placeholder="Ex: Blade 98 v9, Pure Aero, Speed MP..."
-                    value={form.currentRacket}
-                    onChange={(e) => update("currentRacket", e.target.value)}
-                  />
-                </div>
+              {!form.firstRacket && (
+                <>
+                  <div className="mt-5 grid gap-4">
+                    <div className="grid gap-2">
+                      <label className={label}>{t.currentModel}</label>
+                      <input
+                        className={input}
+                        placeholder={t.currentModelPlaceholder}
+                        value={form.currentRacket}
+                        onChange={(e) => update("currentRacket", e.target.value)}
+                      />
+                    </div>
 
-                <div className="grid gap-2">
-                  <label className={label}>Ce que tu aimes</label>
-                  <textarea
-                    className={input}
-                    rows={3}
-                    placeholder="Ex: contrôle, stabilité, sensations..."
-                    value={form.likes}
-                    onChange={(e) => update("likes", e.target.value)}
-                  />
-                </div>
+                    <div className="grid gap-2">
+                      <label className={label}>{t.likes}</label>
+                      <textarea
+                        className={input}
+                        rows={3}
+                        placeholder={t.likesPlaceholder}
+                        value={form.likes}
+                        onChange={(e) => update("likes", e.target.value)}
+                      />
+                    </div>
 
-                <div className="grid gap-2">
-                  <label className={label}>Ce que tu veux améliorer</label>
-                  <textarea
-                    className={input}
-                    rows={3}
-                    placeholder="Ex: profondeur, puissance, lift, confort..."
-                    value={form.dislikes}
-                    onChange={(e) => update("dislikes", e.target.value)}
-                  />
-                </div>
-              </>
-            )}
+                    <div className="grid gap-2">
+                      <label className={label}>{t.dislikes}</label>
+                      <textarea
+                        className={input}
+                        rows={3}
+                        placeholder={t.dislikesPlaceholder}
+                        value={form.dislikes}
+                        onChange={(e) => update("dislikes", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
             </section>
 
-            {/* 4) Préférences raquette */}
             <section className={card}>
-              <h2 className="text-lg font-semibold">Préférences raquette</h2>
-              <p className="mt-1 text-xs text-white/70">
-              </p>
+              <h2 className="text-lg font-semibold">{t.preferences}</h2>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <div className="grid gap-2 rounded-2xl border border-white/15 bg-emerald-950/20 p-4">
-                  <label className={label}>Poids cible (préférence)</label>
+                  <label className={label}>{t.targetWeight}</label>
                   <input
                     type="range"
                     min={285}
@@ -509,7 +734,7 @@ export default function Home() {
                 </div>
 
                 <div className="grid gap-2">
-                  <label className={label}>Tamis</label>
+                  <label className={label}>{t.headSize}</label>
                   <select
                     className={input}
                     value={form.headSize}
@@ -522,79 +747,87 @@ export default function Home() {
                       )
                     }
                   >
-                    <option value={98}>98 (plus précis)</option>
-                    <option value={100}>100 (standard)</option>
-                    <option value={102}>102+ (plus tolérant)</option>
-                    <option value="dontknow">Je ne sais pas</option>
+                    <option value={98}>{t.head98}</option>
+                    <option value={100}>{t.head100}</option>
+                    <option value={102}>{t.head102}</option>
+                    <option value="dontknow">{t.dontKnow}</option>
                   </select>
                 </div>
 
                 <div className="grid gap-2 md:col-span-2">
-                  <label className={label}>Sensations recherchées</label>
+                  <label className={label}>{t.racketFeel}</label>
                   <select
                     className={input}
                     value={form.racketFeel}
-                    onChange={(e) => update("racketFeel", e.target.value as RecommendPayload["racketFeel"])}
+                    onChange={(e) =>
+                      update("racketFeel", e.target.value as RecommendPayload["racketFeel"])
+                    }
                   >
-                    <option value="power">Puissance</option>
-                    <option value="comfort">Confort</option>
-                    <option value="spin">Spin</option>
-                    <option value="mix">Mix / équilibrée</option>
+                    <option value="power">{t.feelPower}</option>
+                    <option value="comfort">{t.feelComfort}</option>
+                    <option value="spin">{t.feelSpin}</option>
+                    <option value="mix">{t.feelMix}</option>
                   </select>
                 </div>
               </div>
             </section>
 
-            {/* 5) Cordage */}
             <section className={card}>
-              <h2 className="text-lg font-semibold">Cordage</h2>
-              <p className="mt-1 text-xs text-white/70">
-              </p>
+              <h2 className="text-lg font-semibold">{t.string}</h2>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <div className="grid gap-2">
-                  <label className={label}>Type</label>
+                  <label className={label}>{t.stringType}</label>
                   <select
                     className={input}
                     value={form.stringType}
-                    onChange={(e) => update("stringType", e.target.value as RecommendPayload["stringType"])}
+                    onChange={(e) =>
+                      update("stringType", e.target.value as RecommendPayload["stringType"])
+                    }
                   >
-                    <option value="dontknow">Je ne sais pas</option>
-                    <option value="poly">Polyester monofilament</option>
-                    <option value="multi">Multifilament</option>
-                    <option value="hybrid">Hybride</option>
+                    <option value="dontknow">{t.dontKnow}</option>
+                    <option value="poly">{t.poly}</option>
+                    <option value="multi">{t.multi}</option>
+                    <option value="hybrid">{t.hybrid}</option>
                   </select>
                 </div>
 
                 <div className="grid gap-2">
-                  <label className={label}>Tu casses souvent ?</label>
+                  <label className={label}>{t.breaksOften}</label>
                   <select
                     className={input}
                     value={form.breaksOften}
-                    onChange={(e) => update("breaksOften", e.target.value as RecommendPayload["breaksOften"])}
+                    onChange={(e) =>
+                      update("breaksOften", e.target.value as RecommendPayload["breaksOften"])
+                    }
                   >
-                    <option value="dontknow">Je ne sais pas</option>
-                    <option value="yes">Oui</option>
-                    <option value="no">Non</option>
+                    <option value="dontknow">{t.dontKnow}</option>
+                    <option value="yes">{t.yes}</option>
+                    <option value="no">{t.no}</option>
                   </select>
                 </div>
 
                 <div className="grid gap-2">
-                  <label className={label}>Priorité</label>
+                  <label className={label}>{t.stringPriority}</label>
                   <select
                     className={input}
                     value={form.stringPriority}
-                    onChange={(e) => update("stringPriority", e.target.value as RecommendPayload["stringPriority"])}
+                    onChange={(e) =>
+                      update(
+                        "stringPriority",
+                        e.target.value as RecommendPayload["stringPriority"]
+                      )
+                    }
                   >
-                    <option value="spin">Spin</option>
-                    <option value="control">Contrôle</option>
-                    <option value="power">Puissance</option>
-                    <option value="comfort">Confort</option>
+                    <option value="spin">{t.goalSpin}</option>
+                    <option value="control">{t.goalControl}</option>
+                    <option value="power">{t.goalPower}</option>
+                    <option value="comfort">{t.goalComfort}</option>
                   </select>
                 </div>
 
                 <div className="grid gap-2">
-                  <label className={label}>Tension actuelle (repère)</label>
+                  <label className={label}>{t.tensionCurrent}</label>
                   <input
                     type="number"
                     className={input}
@@ -607,13 +840,10 @@ export default function Home() {
               </div>
             </section>
 
-            {/* CTA bottom */}
             <div className="rounded-3xl border border-white/15 bg-gradient-to-r from-white/10 to-white/5 p-6">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <p className="text-sm font-semibold">Lancer l’analyse</p>
-                  <p className="mt-1 text-xs text-white/70">
-                  </p>
+                  <p className="text-sm font-semibold">{t.launchAnalysis}</p>
                 </div>
 
                 <button
@@ -621,26 +851,24 @@ export default function Home() {
                   disabled={loading}
                   className="inline-flex items-center justify-center rounded-2xl bg-lime-300 px-5 py-3 text-sm font-semibold text-emerald-950 shadow-lg shadow-lime-300/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {loading ? "Analyse en cours..." : "Trouver ma raquette + mon cordage"}
+                  {loading ? t.loading : t.ctaMain}
                 </button>
               </div>
             </div>
           </div>
 
-          {/* RESULTAT */}
           {ai && !ai.error && (
             <section className={"mt-8 " + card}>
-              <h2 className="text-lg font-semibold">Choix final</h2>
-              <p className="mt-1 text-xs text-white/70">
-              </p>
+              <h2 className="text-lg font-semibold">{t.finalChoice}</h2>
 
               <div className="mt-5 grid gap-4">
-                {(typeof ai.recommendedWeightG === "number" || typeof ai.recommendedTensionKg === "number") && (
+                {(typeof ai.recommendedWeightG === "number" ||
+                  typeof ai.recommendedTensionKg === "number") && (
                   <div className="rounded-2xl border border-white/15 bg-emerald-950/20 p-4">
                     <div className="grid gap-3 md:grid-cols-2">
                       {typeof ai.recommendedWeightG === "number" && (
                         <div>
-                          <p className="text-xs text-white/70">Poids conseillé</p>
+                          <p className="text-xs text-white/70">{t.advisedWeight}</p>
                           <p className="mt-1 text-sm font-semibold">
                             {ai.recommendedWeightG} g
                           </p>
@@ -648,7 +876,7 @@ export default function Home() {
                       )}
                       {typeof ai.recommendedTensionKg === "number" && (
                         <div>
-                          <p className="text-xs text-white/70">Tension recommandée</p>
+                          <p className="text-xs text-white/70">{t.advisedTension}</p>
                           <p className="mt-1 text-sm font-semibold">
                             {ai.recommendedTensionKg} kg
                           </p>
@@ -659,12 +887,15 @@ export default function Home() {
                 )}
 
                 <div className="rounded-2xl border border-white/15 bg-emerald-950/20 p-4">
-                  <p className="font-medium">Raquettes</p>
+                  <p className="font-medium">{t.rackets}</p>
 
                   {(ai.rackets?.length ?? 0) > 0 ? (
                     <div className="mt-3 grid gap-3">
                       {ai.rackets!.slice(0, 3).map((r, idx) => (
-                        <div key={idx} className="rounded-2xl border border-white/15 bg-white/5 p-4">
+                        <div
+                          key={idx}
+                          className="rounded-2xl border border-white/15 bg-white/5 p-4"
+                        >
                           <p className="font-medium">
                             <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-xl bg-lime-300/15 text-xs text-lime-100">
                               {idx + 1}
@@ -680,17 +911,20 @@ export default function Home() {
                       ))}
                     </div>
                   ) : (
-                    <p className="mt-2 text-sm text-white/70">Aucune raquette renvoyée.</p>
+                    <p className="mt-2 text-sm text-white/70">{t.noRacket}</p>
                   )}
                 </div>
 
                 <div className="rounded-2xl border border-white/15 bg-emerald-950/20 p-4">
-                  <p className="font-medium">Cordages</p>
+                  <p className="font-medium">{t.strings}</p>
 
                   {(ai.strings?.length ?? 0) > 0 ? (
                     <div className="mt-3 grid gap-3">
                       {ai.strings!.slice(0, 3).map((s, idx) => (
-                        <div key={idx} className="rounded-2xl border border-white/15 bg-white/5 p-4">
+                        <div
+                          key={idx}
+                          className="rounded-2xl border border-white/15 bg-white/5 p-4"
+                        >
                           <p className="font-medium">
                             <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-xl bg-lime-300/15 text-xs text-lime-100">
                               {idx + 1}
@@ -706,13 +940,13 @@ export default function Home() {
                       ))}
                     </div>
                   ) : (
-                    <p className="mt-2 text-sm text-white/70">Aucun cordage renvoyé.</p>
+                    <p className="mt-2 text-sm text-white/70">{t.noString}</p>
                   )}
                 </div>
 
                 {(ai.notes?.length ?? 0) > 0 && (
                   <div className="rounded-2xl border border-white/15 bg-emerald-950/20 p-4">
-                    <p className="font-medium">Notes</p>
+                    <p className="font-medium">{t.notes}</p>
                     <ul className="mt-2 list-disc pl-5 text-sm text-white/85">
                       {ai.notes!.slice(0, 6).map((x, i) => (
                         <li key={i}>{x}</li>
@@ -726,16 +960,15 @@ export default function Home() {
 
           {ai?.error && (
             <section className="mt-8 rounded-3xl border border-red-500/30 bg-red-500/10 p-6 shadow-xl shadow-black/20 backdrop-blur">
-              <h2 className="text-lg font-semibold text-red-200">Erreur</h2>
+              <h2 className="text-lg font-semibold text-red-200">{t.error}</h2>
               <p className="mt-2 text-sm text-red-100/90">{ai.error}</p>
             </section>
           )}
 
-          {/* data = cachée */}
           {data && null}
 
           <div className="mt-10 text-center text-xs text-white/50">
-            Projet personnel à but expérimental, sans affiliation avec aucune marque, feedback sur instagram: nicolas.dib_
+            {t.footer}
           </div>
         </div>
       </div>

@@ -7,6 +7,8 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+type Lang = "fr" | "en";
+
 type AiPick = {
   id?: string;
   title: string;
@@ -33,64 +35,105 @@ function safeArray<T = any>(x: any): T[] {
   return Array.isArray(x) ? x : [];
 }
 
+function getLang(body: any): Lang {
+  return body?.lang === "en" ? "en" : "fr";
+}
+
 function fallbackTitleRacket(x: any) {
   const brand = String(x?.brand ?? "").trim();
   const model = String(x?.model ?? "").trim();
-  return `${brand} ${model}`.trim() || "Raquette";
+  return `${brand} ${model}`.trim() || "Racket";
 }
 
 function fallbackTitleString(x: any) {
   const brand = String(x?.brand ?? "").trim();
   const model = String(x?.model ?? "").trim();
   const gauge = x?.gauge ? ` ${x.gauge}` : "";
-  return `${brand} ${model}${gauge}`.trim() || "Cordage";
+  return `${brand} ${model}${gauge}`.trim() || "String";
 }
 
-function buildFallbackReasonsRacket(x: any, questionnaire: any) {
+function buildFallbackReasonsRacket(x: any, questionnaire: any, lang: Lang) {
   const reasons: string[] = [];
 
-  if (x?.spin >= 7 && questionnaire?.goal === "spin") {
-    reasons.push("Bon match avec ta recherche de spin.");
-  }
-  if (x?.control >= 7 && questionnaire?.goal === "control") {
-    reasons.push("Apporte le contrôle que tu recherches.");
-  }
-  if (x?.power >= 7 && questionnaire?.goal === "power") {
-    reasons.push("Aide à générer plus de puissance.");
-  }
-  if (x?.comfort >= 7 && (questionnaire?.goal === "comfort" || questionnaire?.armPain)) {
-    reasons.push("Profil plus confortable pour le bras.");
-  }
-  if (typeof x?._score === "number") {
-    reasons.push("Très bien classée par le moteur de recommandation.");
+  if (lang === "fr") {
+    if (x?.spin >= 7 && questionnaire?.goal === "spin") {
+      reasons.push("Bon match avec ta recherche de spin.");
+    }
+    if (x?.control >= 7 && questionnaire?.goal === "control") {
+      reasons.push("Apporte le contrôle que tu recherches.");
+    }
+    if (x?.power >= 7 && questionnaire?.goal === "power") {
+      reasons.push("Aide à générer plus de puissance.");
+    }
+    if (x?.comfort >= 7 && (questionnaire?.goal === "comfort" || questionnaire?.armPain)) {
+      reasons.push("Profil plus confortable pour le bras.");
+    }
+    if (typeof x?._score === "number") {
+      reasons.push("Très bien classée par le moteur de recommandation.");
+    }
+  } else {
+    if (x?.spin >= 7 && questionnaire?.goal === "spin") {
+      reasons.push("Good match for your spin-oriented needs.");
+    }
+    if (x?.control >= 7 && questionnaire?.goal === "control") {
+      reasons.push("Provides the control you are looking for.");
+    }
+    if (x?.power >= 7 && questionnaire?.goal === "power") {
+      reasons.push("Helps generate easier power.");
+    }
+    if (x?.comfort >= 7 && (questionnaire?.goal === "comfort" || questionnaire?.armPain)) {
+      reasons.push("More arm-friendly overall profile.");
+    }
+    if (typeof x?._score === "number") {
+      reasons.push("Highly ranked by the recommendation engine.");
+    }
   }
 
   return reasons.slice(0, 3);
 }
 
-function buildFallbackReasonsString(x: any, questionnaire: any) {
+function buildFallbackReasonsString(x: any, questionnaire: any, lang: Lang) {
   const reasons: string[] = [];
 
-  if (x?.spin >= 7 && questionnaire?.stringPriority === "spin") {
-    reasons.push("Bon choix pour favoriser le spin.");
-  }
-  if (x?.control >= 7 && questionnaire?.stringPriority === "control") {
-    reasons.push("Aide à mieux contrôler la balle.");
-  }
-  if (x?.power >= 7 && questionnaire?.stringPriority === "power") {
-    reasons.push("Peut apporter un peu plus de relance.");
-  }
-  if (x?.comfort >= 7 && (questionnaire?.stringPriority === "comfort" || questionnaire?.armPain)) {
-    reasons.push("Option plus confortable pour le bras.");
-  }
-  if (x?.durability >= 7 && questionnaire?.breaksOften === "yes") {
-    reasons.push("Intéressant si tu casses souvent.");
+  if (lang === "fr") {
+    if (x?.spin >= 7 && questionnaire?.stringPriority === "spin") {
+      reasons.push("Bon choix pour favoriser le spin.");
+    }
+    if (x?.control >= 7 && questionnaire?.stringPriority === "control") {
+      reasons.push("Aide à mieux contrôler la balle.");
+    }
+    if (x?.power >= 7 && questionnaire?.stringPriority === "power") {
+      reasons.push("Peut apporter un peu plus de relance.");
+    }
+    if (x?.comfort >= 7 && (questionnaire?.stringPriority === "comfort" || questionnaire?.armPain)) {
+      reasons.push("Option plus confortable pour le bras.");
+    }
+    if (x?.durability >= 7 && questionnaire?.breaksOften === "yes") {
+      reasons.push("Intéressant si tu casses souvent.");
+    }
+  } else {
+    if (x?.spin >= 7 && questionnaire?.stringPriority === "spin") {
+      reasons.push("Good option to enhance spin.");
+    }
+    if (x?.control >= 7 && questionnaire?.stringPriority === "control") {
+      reasons.push("Helps improve ball control.");
+    }
+    if (x?.power >= 7 && questionnaire?.stringPriority === "power") {
+      reasons.push("Can provide a bit more easy power.");
+    }
+    if (x?.comfort >= 7 && (questionnaire?.stringPriority === "comfort" || questionnaire?.armPain)) {
+      reasons.push("More comfortable option for the arm.");
+    }
+    if (x?.durability >= 7 && questionnaire?.breaksOften === "yes") {
+      reasons.push("Useful if you break strings often.");
+    }
   }
 
   return reasons.slice(0, 3);
 }
 
 function buildFallbackOutput(body: any): AiOut {
+  const lang = getLang(body);
   const questionnaire = body?.questionnaire ?? {};
   const rackets = safeArray(body?.rackets).slice(0, 3);
   const strings = safeArray(body?.strings).slice(0, 3);
@@ -99,12 +142,12 @@ function buildFallbackOutput(body: any): AiOut {
     rackets: rackets.map((x: any) => ({
       id: typeof x?.id === "string" ? x.id : undefined,
       title: fallbackTitleRacket(x),
-      reasons: buildFallbackReasonsRacket(x, questionnaire),
+      reasons: buildFallbackReasonsRacket(x, questionnaire, lang),
     })),
     strings: strings.map((x: any) => ({
       id: typeof x?.id === "string" ? x.id : undefined,
       title: fallbackTitleString(x),
-      reasons: buildFallbackReasonsString(x, questionnaire),
+      reasons: buildFallbackReasonsString(x, questionnaire, lang),
     })),
     recommendedTensionKg:
       typeof body?.computed?.recommendedTension === "number"
@@ -118,10 +161,16 @@ function buildFallbackOutput(body: any): AiOut {
         : typeof questionnaire?.targetWeight === "number"
         ? questionnaire.targetWeight
         : 300,
-    notes: [
-      "Résultat généré depuis la shortlist algorithmique.",
-      "L’arbitrage IA n’a pas été utilisé ou a échoué, fallback local appliqué.",
-    ],
+    notes:
+      lang === "fr"
+        ? [
+            "Résultat généré depuis la shortlist algorithmique.",
+            "L’arbitrage IA n’a pas été utilisé ou a échoué, fallback local appliqué.",
+          ]
+        : [
+            "Result generated from the algorithmic shortlist.",
+            "AI arbitration was not used or failed, so a local fallback was applied.",
+          ],
   };
 }
 
@@ -130,6 +179,8 @@ export async function POST(req: Request) {
 
   try {
     body = await req.json();
+    const lang = getLang(body);
+
     const { questionnaire, rackets, strings, computed, recommendedWeightG } = body ?? {};
 
     if (!process.env.OPENAI_API_KEY?.trim()) {
@@ -138,7 +189,12 @@ export async function POST(req: Request) {
 
     if (!Array.isArray(rackets) || !Array.isArray(strings)) {
       return NextResponse.json(
-        { error: "Payload invalide: rackets/strings doivent être des tableaux." },
+        {
+          error:
+            lang === "fr"
+              ? "Payload invalide: rackets/strings doivent être des tableaux."
+              : "Invalid payload: rackets/strings must be arrays.",
+        },
         { status: 400 }
       );
     }
@@ -160,7 +216,9 @@ export async function POST(req: Request) {
         ? questionnaire.tensionKg
         : 23;
 
-    const instructions = `
+    const instructions =
+      lang === "fr"
+        ? `
 Tu es un expert tennis fitter (raquette + cordage).
 Tu dois choisir UNIQUEMENT parmi les items fournis. N'invente aucun modèle.
 Tu réponds STRICTEMENT en JSON valide, sans texte autour.
@@ -181,6 +239,7 @@ Règles importantes :
 - pas de recommandation générique
 - pas plus de 3 reasons par item
 - si seulement 1 ou 2 choix sont pertinents, n’en renvoie pas 3 de force
+- écris TOUTES les reasons et les notes en français
 
 Format JSON EXACT :
 {
@@ -200,10 +259,53 @@ Règles de forme :
 - pour un cordage, tu peux ajouter la jauge si utile
 - reasons : 1 à 3 bullets max, très concrètes
 - notes : 0 à 4 max
+`
+        : `
+You are an expert tennis fitter (racket + string).
+You must choose ONLY from the provided items. Do not invent any model.
+You must reply STRICTLY in valid JSON, with no extra text around it.
+
+Mission:
+- select at most 3 rackets and 3 strings
+- prioritize the algorithmic ranking (_score)
+- you may slightly reorder close candidates, but you must not promote a clearly lower-ranked item without a strong reason
+- personalize the recommendations to the user profile
+- stay concrete, credible, and concise
+
+Important rules:
+- prioritize the best _score values
+- respect goal, style, gameType, armPain, firstRacket, stringPriority, breaksOften, fftRank
+- if armPain = true, avoid overly harsh or uncomfortable options
+- if firstRacket = true, avoid overly demanding setups
+- do not mention price
+- do not give generic recommendations
+- no more than 3 reasons per item
+- if only 1 or 2 choices are truly relevant, do not force 3
+- write ALL reasons and notes in English
+
+EXACT JSON format:
+{
+  "rackets": [
+    { "id": "...", "title": "...", "reasons": ["...", "..."] }
+  ],
+  "strings": [
+    { "id": "...", "title": "...", "reasons": ["...", "..."] }
+  ],
+  "recommendedTensionKg": 22.5,
+  "recommendedWeightG": 300,
+  "notes": ["...", "..."]
+}
+
+Formatting rules:
+- title must be readable: "Brand Model"
+- for a string, you may add gauge if useful
+- reasons: 1 to 3 bullets max, very concrete
+- notes: 0 to 4 max
 `;
 
     const input = JSON.stringify(
       {
+        lang,
         questionnaire,
         recommendedWeightG: fallbackWeight,
         recommendedTensionKg: fallbackTension,
@@ -260,13 +362,19 @@ Règles de forme :
     out.rackets = out.rackets.slice(0, 3).map((x: any) => ({
       id: typeof x?.id === "string" ? x.id : undefined,
       title: String(x?.title ?? "").trim() || "—",
-      reasons: safeArray(x?.reasons).map((r: any) => String(r)).filter(Boolean).slice(0, 3),
+      reasons: safeArray(x?.reasons)
+        .map((r: any) => String(r))
+        .filter(Boolean)
+        .slice(0, 3),
     }));
 
     out.strings = out.strings.slice(0, 3).map((x: any) => ({
       id: typeof x?.id === "string" ? x.id : undefined,
       title: String(x?.title ?? "").trim() || "—",
-      reasons: safeArray(x?.reasons).map((r: any) => String(r)).filter(Boolean).slice(0, 3),
+      reasons: safeArray(x?.reasons)
+        .map((r: any) => String(r))
+        .filter(Boolean)
+        .slice(0, 3),
     }));
 
     out.recommendedTensionKg = clamp05(out.recommendedTensionKg);
