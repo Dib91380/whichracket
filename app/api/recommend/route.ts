@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import fs from "fs/promises";
+import path from "path";
 
 export const runtime = "nodejs";
-
-const prisma = new PrismaClient();
 
 // ---------------------------
 // Helpers
@@ -21,7 +20,7 @@ function round05(x: number) {
  */
 function fftToLevelScore(rank: string): number {
   const map: Record<string, number> = {
-    "NC": 1,
+    NC: 1,
     "40": 2,
     "30/5": 3,
     "30/4": 3.5,
@@ -64,12 +63,7 @@ function headSizeScore(wanted: number, head: number) {
 }
 
 /**
- * Tension reco
- * - base autour de tensionKg (si donnée), sinon 23
- * - goal contrôle => un peu plus haut
- * - power/confort => un peu plus bas
- * - armPain => baisse
- * - poly => un peu plus bas souvent
+ * Tension recommandée
  */
 function recommendedTensionKg(input: any) {
   const goal = String(input?.goal ?? "spin");
@@ -88,6 +82,7 @@ function recommendedTensionKg(input: any) {
 
   if (stringType === "poly") t -= 0.3;
   if (stringType === "multi") t += 0.2;
+  if (stringType === "hybrid") t -= 0.1;
 
   t = clamp(round05(t), 16, 30);
   return t;
@@ -100,34 +95,83 @@ function racketWeights(input: any) {
   const goal = String(input?.goal ?? "spin");
   const racketFeel = String(input?.racketFeel ?? "mix");
   const gameType = String(input?.gameType ?? "complet");
+  const style = String(input?.style ?? "mix");
+  const frequency = String(input?.frequency ?? "3-4");
   const armPain = Boolean(input?.armPain);
+  const age = Number(input?.age ?? 25);
 
   let wPower = 1;
   let wSpin = 1;
   let wControl = 1;
   let wComfort = 1;
 
+  // objectif principal
   if (goal === "spin") wSpin += 1.4;
   if (goal === "control") wControl += 1.4;
   if (goal === "power") wPower += 1.4;
   if (goal === "comfort") wComfort += 1.6;
 
+  // sensations recherchées
   if (racketFeel === "spin") wSpin += 0.9;
   if (racketFeel === "power") wPower += 0.9;
   if (racketFeel === "comfort") wComfort += 1.1;
   if (racketFeel === "mix") {
-    wPower += 0.3; wSpin += 0.3; wControl += 0.3; wComfort += 0.3;
+    wPower += 0.3;
+    wSpin += 0.3;
+    wControl += 0.3;
+    wComfort += 0.3;
   }
 
-  if (gameType === "defense") { wControl += 0.6; wComfort += 0.5; }
-  if (gameType === "attaque") { wPower += 0.6; wSpin += 0.4; }
-  if (gameType === "servevolley") { wPower += 0.7; wControl += 0.5; }
-  if (gameType === "complet") { wPower += 0.3; wSpin += 0.3; wControl += 0.3; wComfort += 0.3; }
+  // type de frappe
+  if (style === "lift") {
+    wSpin += 0.8;
+    wPower += 0.2;
+  }
+  if (style === "flat") {
+    wControl += 0.8;
+    wPower += 0.2;
+  }
+  if (style === "mix") {
+    wSpin += 0.2;
+    wControl += 0.2;
+  }
 
-  // bras : on garde juste armPain
+  // type de jeu
+  if (gameType === "defense") {
+    wControl += 0.6;
+    wComfort += 0.5;
+  }
+  if (gameType === "attaque") {
+    wPower += 0.6;
+    wSpin += 0.4;
+  }
+  if (gameType === "servevolley") {
+    wPower += 0.7;
+    wControl += 0.5;
+  }
+  if (gameType === "complet") {
+    wPower += 0.3;
+    wSpin += 0.3;
+    wControl += 0.3;
+    wComfort += 0.3;
+  }
+
+  // fréquence
+  if (frequency === "1-2") {
+    wComfort += 0.5;
+    wControl += 0.2;
+  }
+  if (frequency === "5+") {
+    wSpin += 0.3;
+    wControl += 0.3;
+  }
+
+  // confort / âge
   if (armPain) wComfort += 1.2;
+  if (age >= 40) wComfort += 0.2;
 
   const sum = wPower + wSpin + wControl + wComfort;
+
   return {
     power: wPower / sum,
     spin: wSpin / sum,
@@ -144,6 +188,9 @@ function stringWeights(input: any) {
   const armPain = Boolean(input?.armPain);
   const breaksOften = String(input?.breaksOften ?? "dontknow");
   const stringType = String(input?.stringType ?? "dontknow");
+  const style = String(input?.style ?? "mix");
+  const frequency = String(input?.frequency ?? "3-4");
+  const age = Number(input?.age ?? 25);
 
   let wPower = 1;
   let wSpin = 1;
@@ -156,17 +203,44 @@ function stringWeights(input: any) {
   if (priority === "power") wPower += 1.4;
   if (priority === "comfort") wComfort += 1.6;
 
+  if (style === "lift") wSpin += 0.4;
+  if (style === "flat") wControl += 0.4;
+
   if (armPain) wComfort += 1.2;
+  if (age >= 40) wComfort += 0.2;
+
   if (breaksOften === "yes") wDur += 1.0;
 
-  // léger biais si le user impose un type (sans comfortNeed)
-  if (stringType === "poly") { wSpin += 0.2; wControl += 0.2; wDur += 0.2; wComfort -= 0.2; }
-  if (stringType === "multi") { wComfort += 0.5; wPower += 0.3; wDur -= 0.2; }
-  if (stringType === "hybrid") { wComfort += 0.2; wControl += 0.2; wDur += 0.2; }
+  if (frequency === "1-2") {
+    wComfort += 0.4;
+  }
+  if (frequency === "5+") {
+    wDur += 0.4;
+    wControl += 0.2;
+  }
+
+  if (stringType === "poly") {
+    wSpin += 0.2;
+    wControl += 0.2;
+    wDur += 0.2;
+    wComfort -= 0.2;
+  }
+  if (stringType === "multi") {
+    wComfort += 0.5;
+    wPower += 0.3;
+    wDur -= 0.2;
+  }
+  if (stringType === "hybrid") {
+    wComfort += 0.2;
+    wControl += 0.2;
+    wDur += 0.2;
+  }
 
   wComfort = Math.max(0.1, wComfort);
+  wDur = Math.max(0.1, wDur);
 
   const sum = wPower + wSpin + wControl + wComfort + wDur;
+
   return {
     power: wPower / sum,
     spin: wSpin / sum,
@@ -177,34 +251,39 @@ function stringWeights(input: any) {
 }
 
 // ---------------------------
+// Load JSON data
+// ---------------------------
+async function loadJson<T>(relPath: string): Promise<T> {
+  const fullPath = path.join(process.cwd(), relPath);
+  const raw = await fs.readFile(fullPath, "utf-8");
+  return JSON.parse(raw) as T;
+}
+
+// ---------------------------
 // Route
 // ---------------------------
 export async function POST(req: Request) {
   try {
     const input = await req.json();
-    
-    
 
     const levelScore = fftToLevelScore(String(input?.fftRank ?? "30"));
     const rw = racketWeights(input);
     const sw = stringWeights(input);
 
-    // ✅ poids DB = uniquement la préférence (plus de "profil physique")
     const targetWeightPref = clamp(Number(input?.targetWeight ?? 300), 270, 330);
     const targetWeightForDb = clamp(Math.round(targetWeightPref / 5) * 5, 270, 320);
 
-    const [rackets, strings] = await Promise.all([
-      prisma.racket.findMany(),
-      prisma.stringItem.findMany(),
-    ]);
+    const rackets = await loadJson<any[]>("data/rackets.json");
+    const strings = await loadJson<any[]>("data/strings.json");
 
     const racketScored = rackets.map((r) => {
       const within = levelScore >= r.levelMin && levelScore <= r.levelMax;
+
       const levelPenalty = within
         ? 0
         : Math.min(
-            2.5,
-            Math.abs(levelScore - clamp(levelScore, r.levelMin, r.levelMax)) * 0.9
+            3,
+            Math.abs(levelScore - clamp(levelScore, r.levelMin, r.levelMax)) * 1.2
           );
 
       const perf =
@@ -214,15 +293,23 @@ export async function POST(req: Request) {
         r.comfort * rw.comfort;
 
       const wScore = weightProximityScore(targetWeightForDb, r.weight);
-      const hScore = headSizeScore(Number(input?.headSize ?? 100), r.headSize);
 
-      // bras : on garde armPain seulement
+      const wantedHead =
+        typeof input?.headSize === "number" ? Number(input.headSize) : 100;
+
+      const hScore = headSizeScore(wantedHead, r.headSize);
+
       const firstRacket = Boolean(input?.firstRacket);
       const armPain = Boolean(input?.armPain);
-      const comfortBonus = armPain ? (r.comfort >= 7 ? 0.6 : -0.6) : 0;
-      
-      let beginnerAdj = 0;
+      const style = String(input?.style ?? "mix");
+      const gameType = String(input?.gameType ?? "complet");
+      const frequency = String(input?.frequency ?? "3-4");
+      const age = Number(input?.age ?? 25);
 
+      const comfortBonus = armPain ? (r.comfort >= 7 ? 0.6 : -0.6) : 0;
+      const armPainPenalty = armPain && r.comfort <= 4 ? 0.8 : 0;
+
+      let beginnerAdj = 0;
       if (firstRacket) {
         if (r.headSize >= 100) beginnerAdj += 0.6;
         if (r.comfort >= 7) beginnerAdj += 0.6;
@@ -231,13 +318,54 @@ export async function POST(req: Request) {
         if (r.headSize <= 98 && r.control >= 9) beginnerAdj -= 0.8;
       }
 
+      let profileFit = 0;
+
+      if (gameType === "attaque" && (r.power >= 7 || r.spin >= 7)) profileFit += 0.35;
+      if (gameType === "defense" && (r.control >= 7 || r.comfort >= 7)) profileFit += 0.35;
+      if (gameType === "servevolley" && (r.power >= 7 || r.control >= 7)) profileFit += 0.35;
+      if (gameType === "complet" && r.power >= 6 && r.control >= 6) profileFit += 0.25;
+
+      if (style === "lift" && r.spin >= 7) profileFit += 0.35;
+      if (style === "flat" && r.control >= 7) profileFit += 0.35;
+      if (style === "mix" && r.power >= 6 && r.control >= 6) profileFit += 0.2;
+
+      if (frequency === "1-2" && r.comfort >= 7) profileFit += 0.2;
+      if (frequency === "5+" && (r.spin >= 7 || r.control >= 7)) profileFit += 0.2;
+
+      if (age >= 40 && r.comfort >= 7) profileFit += 0.2;
+
+      let hardPenalty = 0;
+
+      // première raquette : éviter les cadres trop exigeants
+      if (firstRacket && r.weight >= 305 && r.headSize <= 98 && r.control >= 9) {
+        hardPenalty += 3;
+      }
+
+      // douleur au bras : éviter les cadres trop inconfortables
+      if (armPain && r.comfort <= 4) {
+        hardPenalty += 2;
+      }
+
+      // petit niveau : éviter certains cadres trop techniques
+      if (levelScore <= 5.5 && r.weight >= 305 && r.control >= 8.5) {
+        hardPenalty += 2;
+      }
+
+      // demande de tamis tolérant mais cadre précis/exigeant
+      if (wantedHead >= 100 && r.headSize <= 98 && firstRacket) {
+        hardPenalty += 1.2;
+      }
+
       const score =
-        perf * 1.0 +
-        wScore * 3.2 +
-        hScore * 1.6 +
+        perf * 1.8 +
+        profileFit * 1.5 +
+        wScore * 2.2 +
+        hScore * 1.4 +
         comfortBonus +
         beginnerAdj -
-        levelPenalty;
+        armPainPenalty -
+        levelPenalty -
+        hardPenalty;
 
       return { ...r, _score: Number(score.toFixed(2)) };
     });
@@ -251,14 +379,51 @@ export async function POST(req: Request) {
         s.durability * sw.durability;
 
       const armPain = Boolean(input?.armPain);
+      const breaksOften = String(input?.breaksOften ?? "dontknow");
+      const stringType = String(input?.stringType ?? "dontknow");
+      const frequency = String(input?.frequency ?? "3-4");
       const kind = String(s.kind ?? "");
+
       let painPenalty = 0;
       if (armPain && kind === "poly" && s.comfort <= 5) painPenalty = 1.3;
 
-      const breaksOften = String(input?.breaksOften ?? "dontknow");
-      const durBonus = breaksOften === "yes" ? (s.durability >= 7 ? 0.6 : -0.2) : 0;
+      let durBonus = 0;
+      if (breaksOften === "yes") durBonus = s.durability >= 7 ? 0.6 : -0.2;
 
-      const score = perf * 1.0 + durBonus - painPenalty;
+      let typeBonus = 0;
+      if (stringType === "poly" && kind === "poly") typeBonus += 0.3;
+      if (stringType === "multi" && kind === "multi") typeBonus += 0.3;
+      if (stringType === "hybrid" && kind === "hybrid") typeBonus += 0.3;
+
+      let profileFit = 0;
+      if (frequency === "1-2" && s.comfort >= 7) profileFit += 0.25;
+      if (frequency === "5+" && s.durability >= 7) profileFit += 0.25;
+      if (armPain && s.comfort >= 7) profileFit += 0.4;
+
+      let hardPenalty = 0;
+
+      // douleur au bras : on évite certains polys trop raides
+      if (armPain && kind === "poly" && s.comfort <= 4) {
+        hardPenalty += 2.2;
+      }
+
+      // faible fréquence + poly très inconfortable
+      if (frequency === "1-2" && kind === "poly" && s.comfort <= 4) {
+        hardPenalty += 1.2;
+      }
+
+      // si l'utilisateur veut explicitement du multi, on pénalise les polys raides
+      if (stringType === "multi" && kind === "poly" && s.comfort <= 5) {
+        hardPenalty += 1.4;
+      }
+
+      const score =
+        perf * 1.35 +
+        profileFit +
+        durBonus +
+        typeBonus -
+        painPenalty -
+        hardPenalty;
 
       return { ...s, _score: Number(score.toFixed(2)) };
     });
@@ -283,6 +448,9 @@ export async function POST(req: Request) {
       },
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
+    return NextResponse.json(
+      { error: e?.message ?? "Unknown error" },
+      { status: 500 }
+    );
   }
 }

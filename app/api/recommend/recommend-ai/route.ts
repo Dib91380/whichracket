@@ -7,11 +7,15 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-type AiPick = { id?: string; title: string; reasons: string[] };
+type AiPick = {
+  id?: string;
+  title: string;
+  reasons: string[];
+};
 
 type AiOut = {
-  rackets: AiPick[]; // max 3
-  strings: AiPick[]; // max 3
+  rackets: AiPick[];
+  strings: AiPick[];
   recommendedTensionKg: number;
   recommendedWeightG: number;
   notes: string[];
@@ -29,16 +33,107 @@ function safeArray<T = any>(x: any): T[] {
   return Array.isArray(x) ? x : [];
 }
 
+function fallbackTitleRacket(x: any) {
+  const brand = String(x?.brand ?? "").trim();
+  const model = String(x?.model ?? "").trim();
+  return `${brand} ${model}`.trim() || "Raquette";
+}
+
+function fallbackTitleString(x: any) {
+  const brand = String(x?.brand ?? "").trim();
+  const model = String(x?.model ?? "").trim();
+  const gauge = x?.gauge ? ` ${x.gauge}` : "";
+  return `${brand} ${model}${gauge}`.trim() || "Cordage";
+}
+
+function buildFallbackReasonsRacket(x: any, questionnaire: any) {
+  const reasons: string[] = [];
+
+  if (x?.spin >= 7 && questionnaire?.goal === "spin") {
+    reasons.push("Bon match avec ta recherche de spin.");
+  }
+  if (x?.control >= 7 && questionnaire?.goal === "control") {
+    reasons.push("Apporte le contrôle que tu recherches.");
+  }
+  if (x?.power >= 7 && questionnaire?.goal === "power") {
+    reasons.push("Aide à générer plus de puissance.");
+  }
+  if (x?.comfort >= 7 && (questionnaire?.goal === "comfort" || questionnaire?.armPain)) {
+    reasons.push("Profil plus confortable pour le bras.");
+  }
+  if (typeof x?._score === "number") {
+    reasons.push("Très bien classée par le moteur de recommandation.");
+  }
+
+  return reasons.slice(0, 3);
+}
+
+function buildFallbackReasonsString(x: any, questionnaire: any) {
+  const reasons: string[] = [];
+
+  if (x?.spin >= 7 && questionnaire?.stringPriority === "spin") {
+    reasons.push("Bon choix pour favoriser le spin.");
+  }
+  if (x?.control >= 7 && questionnaire?.stringPriority === "control") {
+    reasons.push("Aide à mieux contrôler la balle.");
+  }
+  if (x?.power >= 7 && questionnaire?.stringPriority === "power") {
+    reasons.push("Peut apporter un peu plus de relance.");
+  }
+  if (x?.comfort >= 7 && (questionnaire?.stringPriority === "comfort" || questionnaire?.armPain)) {
+    reasons.push("Option plus confortable pour le bras.");
+  }
+  if (x?.durability >= 7 && questionnaire?.breaksOften === "yes") {
+    reasons.push("Intéressant si tu casses souvent.");
+  }
+
+  return reasons.slice(0, 3);
+}
+
+function buildFallbackOutput(body: any): AiOut {
+  const questionnaire = body?.questionnaire ?? {};
+  const rackets = safeArray(body?.rackets).slice(0, 3);
+  const strings = safeArray(body?.strings).slice(0, 3);
+
+  return {
+    rackets: rackets.map((x: any) => ({
+      id: typeof x?.id === "string" ? x.id : undefined,
+      title: fallbackTitleRacket(x),
+      reasons: buildFallbackReasonsRacket(x, questionnaire),
+    })),
+    strings: strings.map((x: any) => ({
+      id: typeof x?.id === "string" ? x.id : undefined,
+      title: fallbackTitleString(x),
+      reasons: buildFallbackReasonsString(x, questionnaire),
+    })),
+    recommendedTensionKg:
+      typeof body?.computed?.recommendedTension === "number"
+        ? body.computed.recommendedTension
+        : typeof questionnaire?.tensionKg === "number"
+        ? questionnaire.tensionKg
+        : 23,
+    recommendedWeightG:
+      typeof body?.recommendedWeightG === "number"
+        ? body.recommendedWeightG
+        : typeof questionnaire?.targetWeight === "number"
+        ? questionnaire.targetWeight
+        : 300,
+    notes: [
+      "Résultat généré depuis la shortlist algorithmique.",
+      "L’arbitrage IA n’a pas été utilisé ou a échoué, fallback local appliqué.",
+    ],
+  };
+}
+
 export async function POST(req: Request) {
+  let body: any = null;
+
   try {
-    const body = await req.json();
+    body = await req.json();
     const { questionnaire, rackets, strings, computed, recommendedWeightG } = body ?? {};
 
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json(
-        { error: "OPENAI_API_KEY manquante dans .env" },
-        { status: 500 }
-      );
+    if (!process.env.OPENAI_API_KEY?.trim()) {
+      return NextResponse.json(buildFallbackOutput(body));
     }
 
     if (!Array.isArray(rackets) || !Array.isArray(strings)) {
@@ -48,7 +143,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ Fallback poids (on ne dépend PAS de âge/sex/taille ici)
+    const shortlistRackets = rackets.slice(0, 5);
+    const shortlistStrings = strings.slice(0, 5);
+
     const fallbackWeight =
       typeof recommendedWeightG === "number"
         ? recommendedWeightG
@@ -56,51 +153,63 @@ export async function POST(req: Request) {
         ? questionnaire.targetWeight
         : 300;
 
+    const fallbackTension =
+      typeof computed?.recommendedTension === "number"
+        ? computed.recommendedTension
+        : typeof questionnaire?.tensionKg === "number"
+        ? questionnaire.tensionKg
+        : 23;
+
     const instructions = `
 Tu es un expert tennis fitter (raquette + cordage).
-Tu dois choisir UNIQUEMENT parmi les items fournis (rackets/strings). N'invente rien.
-Tu réponds STRICTEMENT en JSON valide, sans aucun texte autour.
+Tu dois choisir UNIQUEMENT parmi les items fournis. N'invente aucun modèle.
+Tu réponds STRICTEMENT en JSON valide, sans texte autour.
 
-Objectif:
-- Proposer MAX 3 raquettes classées (#1, #2, #3) et MAX 3 cordages classés
-- Donner une tension recommandée (par pas de 0.5 kg)
-- Donner un poids conseillé (en grammes) cohérent avec la shortlist et la préférence utilisateur
-- Expliquer en bullets: court, clair, concret (3 bullets max par item)
+Mission :
+- sélectionner au maximum 3 raquettes et 3 cordages
+- respecter en priorité le classement algorithmique (_score)
+- tu peux départager des candidats proches, mais tu ne dois pas promouvoir un item nettement moins bien classé sans raison forte
+- personnaliser selon le profil utilisateur
+- rester concret, crédible et court
 
-Contraintes:
-- Si armPain: éviter poly trop raide, tension plus basse.
-- Respecter goal/style/gameType et le niveau FFT.
-- Ne parle pas de prix.
-- Ne renvoie jamais plus de 3 raquettes ou 3 cordages.
-- Le "recommendedWeightG" doit être un entier (ex: 285, 300, 305) cohérent avec la shortlist.
+Règles importantes :
+- priorise les meilleurs _score
+- respecte goal, style, gameType, armPain, firstRacket, stringPriority, breaksOften, fftRank
+- si armPain = true, évite les options trop raides/inconfortables
+- si firstRacket = true, évite les setups trop exigeants
+- pas de prix
+- pas de recommandation générique
+- pas plus de 3 reasons par item
+- si seulement 1 ou 2 choix sont pertinents, n’en renvoie pas 3 de force
 
-Format JSON EXACT:
+Format JSON EXACT :
 {
   "rackets": [
-    {"id":"...", "title":"...", "reasons":["...","..."]}
+    { "id": "...", "title": "...", "reasons": ["...", "..."] }
   ],
   "strings": [
-    {"id":"...", "title":"...", "reasons":["...","..."]}
+    { "id": "...", "title": "...", "reasons": ["...", "..."] }
   ],
   "recommendedTensionKg": 22.5,
   "recommendedWeightG": 300,
-  "notes": ["...","..."]
+  "notes": ["...", "..."]
 }
 
-Règles supplémentaires:
-- title doit être lisible: "Marque Modèle" (+ jauge/type pour un cordage si utile)
-- reasons: 1 à 3 bullets MAX
-- Si tu n'as pas 3 choix pertinents, renvoie 1 ou 2 éléments (pas de placeholders).
-- Tu es un expert, il faut que les recommandations soient pertinentes et personnalisées selon le profil et les préférences (pas de suggestions génériques).
+Règles de forme :
+- title lisible : "Marque Modèle"
+- pour un cordage, tu peux ajouter la jauge si utile
+- reasons : 1 à 3 bullets max, très concrètes
+- notes : 0 à 4 max
 `;
 
     const input = JSON.stringify(
       {
         questionnaire,
         recommendedWeightG: fallbackWeight,
-        rackets,
-        strings,
+        recommendedTensionKg: fallbackTension,
         computed,
+        rackets: shortlistRackets,
+        strings: shortlistStrings,
       },
       null,
       2
@@ -114,8 +223,8 @@ Règles supplémentaires:
 
     const text = resp.output_text?.trim() || "";
 
-    // parse JSON robuste
     let parsed: any = null;
+
     try {
       parsed = JSON.parse(text);
     } catch {
@@ -131,22 +240,16 @@ Règles supplémentaires:
     }
 
     if (!parsed) {
-      return NextResponse.json(
-        { error: "AI JSON parse failed", raw: text },
-        { status: 500 }
-      );
+      return NextResponse.json(buildFallbackOutput(body));
     }
 
-    // Normalisation + garde-fous
     const out: AiOut = {
       rackets: safeArray(parsed.rackets),
       strings: safeArray(parsed.strings),
       recommendedTensionKg:
         typeof parsed.recommendedTensionKg === "number"
           ? parsed.recommendedTensionKg
-          : typeof questionnaire?.tensionKg === "number"
-          ? questionnaire.tensionKg
-          : 23,
+          : fallbackTension,
       recommendedWeightG:
         typeof parsed.recommendedWeightG === "number"
           ? parsed.recommendedWeightG
@@ -154,36 +257,40 @@ Règles supplémentaires:
       notes: safeArray(parsed.notes),
     };
 
-    // coupe à 3 max + nettoyage
     out.rackets = out.rackets.slice(0, 3).map((x: any) => ({
       id: typeof x?.id === "string" ? x.id : undefined,
       title: String(x?.title ?? "").trim() || "—",
-      reasons: safeArray(x?.reasons).map((r: any) => String(r)).slice(0, 3),
+      reasons: safeArray(x?.reasons).map((r: any) => String(r)).filter(Boolean).slice(0, 3),
     }));
 
     out.strings = out.strings.slice(0, 3).map((x: any) => ({
       id: typeof x?.id === "string" ? x.id : undefined,
       title: String(x?.title ?? "").trim() || "—",
-      reasons: safeArray(x?.reasons).map((r: any) => String(r)).slice(0, 3),
+      reasons: safeArray(x?.reasons).map((r: any) => String(r)).filter(Boolean).slice(0, 3),
     }));
 
-    // tension: arrondi 0.5 + bornes
     out.recommendedTensionKg = clamp05(out.recommendedTensionKg);
     if (out.recommendedTensionKg < 16) out.recommendedTensionKg = 16;
     if (out.recommendedTensionKg > 30) out.recommendedTensionKg = 30;
 
-    // poids: entier + bornes raisonnables
     out.recommendedWeightG = clampInt(out.recommendedWeightG, 285, 315);
 
-    // nettoie les titres vides
     out.rackets = out.rackets.filter((x) => x.title && x.title !== "—");
     out.strings = out.strings.filter((x) => x.title && x.title !== "—");
-    out.notes = out.notes.map((n: any) => String(n)).filter(Boolean).slice(0, 8);
+    out.notes = out.notes.map((n: any) => String(n)).filter(Boolean).slice(0, 4);
+
+    if (out.rackets.length === 0 && out.strings.length === 0) {
+      return NextResponse.json(buildFallbackOutput(body));
+    }
 
     return NextResponse.json(out);
-  } catch (e: any) {
+  } catch {
+    if (body) {
+      return NextResponse.json(buildFallbackOutput(body));
+    }
+
     return NextResponse.json(
-      { error: e?.message ?? "Unknown error" },
+      { error: "Unknown error" },
       { status: 500 }
     );
   }

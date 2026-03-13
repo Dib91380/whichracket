@@ -198,9 +198,12 @@ export default function Home() {
         body: JSON.stringify({
           questionnaire: form,
           recommendedWeightG: form.targetWeight, // ✅
-          rackets: (json.rackets ?? []).slice(0, 10),
-          strings: (json.strings ?? []).slice(0, 10),
-          computed: json.computed ?? {},
+          rackets: (json.rackets ?? []).slice(0, 5),
+          strings: (json.strings ?? []).slice(0, 5),
+          computed: {
+            ...(json.computed ?? {}),
+            recommendedTension: json.recommendedTension,
+          },
         }),
       });
 
@@ -213,7 +216,7 @@ export default function Home() {
       setAi(aiJson);
     } catch (e) {
       console.error(e);
-      alert("Erreur. Ouvre la console (F12) et envoie-moi le message exact.");
+      alert("Erreur fais f12.");
     } finally {
       setLoading(false);
     }
@@ -510,7 +513,14 @@ export default function Home() {
                   <select
                     className={input}
                     value={form.headSize}
-                    onChange={(e) => update("headSize", Number(e.target.value) as 98 | 100 | 102)}
+                    onChange={(e) =>
+                      update(
+                        "headSize",
+                        e.target.value === "dontknow"
+                          ? "dontknow"
+                          : (Number(e.target.value) as 98 | 100 | 102)
+                      )
+                    }
                   >
                     <option value={98}>98 (plus précis)</option>
                     <option value={100}>100 (standard)</option>
