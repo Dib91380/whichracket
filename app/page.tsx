@@ -498,7 +498,7 @@ export default function Home() {
               className="group mt-2 inline-flex items-center justify-center rounded-2xl bg-lime-300 px-5 py-3 text-sm font-semibold text-emerald-950 shadow-lg shadow-lime-300/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <span className="mr-2 inline-flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-950/10">
-                {loading ? "⏳" : "🏁"}
+                {loading ? "⏳" : "🔎"}
               </span>
               {loading ? t.loading : t.ctaMain}
               <span className="ml-2 opacity-70 transition group-hover:translate-x-0.5">→</span>
