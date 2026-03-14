@@ -45,10 +45,10 @@ export const metadata: Metadata = {
     siteName: "WhichRacket",
     images: [
       {
-        url: "/preview.png",
-        width: 1200,
-        height: 630,
-        alt: "WhichRacket tennis recommendation tool",
+        url: "/favicon.ico",
+        width: 512,
+        height: 512,
+        alt: "Whichracket tennis recommendation tool",
       },
     ],
     locale: "en_US",
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
     title: "WhichRacket — Tennis Racket Recommendation Tool",
     description:
       "Find the perfect tennis racket and string setup based on your level and playing style.",
-    images: ["/preview.png"],
+    images: ["/favicon.ico"],
   },
 };
 
