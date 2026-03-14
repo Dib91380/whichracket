@@ -80,10 +80,12 @@ type ApiResult = {
   rackets: RacketResult[];
   strings: StringResult[];
   recommendedTension?: number;
+  recommendedWeightG?: number;
   computed?: {
     levelScore?: number;
-    weights?: any;
+    racketWeights?: any;
     stringWeights?: any;
+    targetWeightForDb?: number;
   };
 };
 
@@ -357,6 +359,9 @@ export default function Home() {
     tensionKg: 23,
   });
 
+  const [ageInput, setAgeInput] = useState("25");
+  const [heightInput, setHeightInput] = useState("175");
+
   const t = translations[lang];
 
   useEffect(() => {
@@ -391,11 +396,36 @@ export default function Home() {
     setData(null);
     setAi(null);
 
+    const safeAge = ageInput.trim() === "" ? 25 : Number(ageInput);
+    const safeHeight = heightInput.trim() === "" ? 175 : Number(heightInput);
+
+    const baseForm: RecommendPayload = {
+      ...form,
+      age: safeAge,
+      heightCm: safeHeight,
+    };
+
+    const payloadToSend: RecommendPayload = baseForm.firstRacket
+      ? {
+          ...baseForm,
+          currentRacket: "",
+          likes: "",
+          dislikes: "",
+          targetWeight: 0,
+          headSize: "dontknow",
+          racketFeel: "mix",
+          stringType: "dontknow",
+          breaksOften: "dontknow",
+          stringPriority: "comfort",
+          tensionKg: 0,
+        }
+      : baseForm;
+
     try {
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payloadToSend),
       });
 
       if (!res.ok) {
@@ -411,8 +441,8 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           lang,
-          questionnaire: form,
-          recommendedWeightG: form.targetWeight,
+          questionnaire: payloadToSend,
+          recommendedWeightG: json.recommendedWeightG,
           rackets: (json.rackets ?? []).slice(0, 5),
           strings: (json.strings ?? []).slice(0, 5),
           computed: {
@@ -522,8 +552,15 @@ export default function Home() {
                     min={10}
                     max={80}
                     className={input}
-                    value={form.age}
-                    onChange={(e) => update("age", Number(e.target.value))}
+                    value={ageInput}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setAgeInput(value);
+
+                      if (value === "") return;
+
+                      update("age", Number(value));
+                    }}
                   />
                 </div>
 
@@ -548,8 +585,15 @@ export default function Home() {
                     min={120}
                     max={220}
                     className={input}
-                    value={form.heightCm}
-                    onChange={(e) => update("heightCm", Number(e.target.value))}
+                    value={heightInput}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setHeightInput(value);
+
+                      if (value === "") return;
+
+                      update("heightCm", Number(value));
+                    }}
                   />
                 </div>
               </div>
@@ -721,129 +765,133 @@ export default function Home() {
               )}
             </section>
 
-            <section className={card}>
-              <h2 className="text-lg font-semibold">{t.preferences}</h2>
+            {!form.firstRacket && (
+              <section className={card}>
+                <h2 className="text-lg font-semibold">{t.preferences}</h2>
 
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2 rounded-2xl border border-white/15 bg-emerald-950/20 p-4">
-                  <label className={label}>{t.targetWeight}</label>
-                  <input
-                    type="range"
-                    min={285}
-                    max={315}
-                    value={form.targetWeight}
-                    onChange={(e) => update("targetWeight", Number(e.target.value))}
-                    className="accent-lime-300"
-                  />
-                  <div className="text-sm text-white/90">{form.targetWeight} g</div>
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2 rounded-2xl border border-white/15 bg-emerald-950/20 p-4">
+                    <label className={label}>{t.targetWeight}</label>
+                    <input
+                      type="range"
+                      min={285}
+                      max={315}
+                      value={form.targetWeight}
+                      onChange={(e) => update("targetWeight", Number(e.target.value))}
+                      className="accent-lime-300"
+                    />
+                    <div className="text-sm text-white/90">{form.targetWeight} g</div>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <label className={label}>{t.headSize}</label>
+                    <select
+                      className={input}
+                      value={form.headSize}
+                      onChange={(e) =>
+                        update(
+                          "headSize",
+                          e.target.value === "dontknow"
+                            ? "dontknow"
+                            : (Number(e.target.value) as 98 | 100 | 102)
+                        )
+                      }
+                    >
+                      <option value={98}>{t.head98}</option>
+                      <option value={100}>{t.head100}</option>
+                      <option value={102}>{t.head102}</option>
+                      <option value="dontknow">{t.dontKnow}</option>
+                    </select>
+                  </div>
+
+                  <div className="grid gap-2 md:col-span-2">
+                    <label className={label}>{t.racketFeel}</label>
+                    <select
+                      className={input}
+                      value={form.racketFeel}
+                      onChange={(e) =>
+                        update("racketFeel", e.target.value as RecommendPayload["racketFeel"])
+                      }
+                    >
+                      <option value="power">{t.feelPower}</option>
+                      <option value="comfort">{t.feelComfort}</option>
+                      <option value="spin">{t.feelSpin}</option>
+                      <option value="mix">{t.feelMix}</option>
+                    </select>
+                  </div>
                 </div>
+              </section>
+            )}
 
-                <div className="grid gap-2">
-                  <label className={label}>{t.headSize}</label>
-                  <select
-                    className={input}
-                    value={form.headSize}
-                    onChange={(e) =>
-                      update(
-                        "headSize",
-                        e.target.value === "dontknow"
-                          ? "dontknow"
-                          : (Number(e.target.value) as 98 | 100 | 102)
-                      )
-                    }
-                  >
-                    <option value={98}>{t.head98}</option>
-                    <option value={100}>{t.head100}</option>
-                    <option value={102}>{t.head102}</option>
-                    <option value="dontknow">{t.dontKnow}</option>
-                  </select>
+            {!form.firstRacket && (
+              <section className={card}>
+                <h2 className="text-lg font-semibold">{t.string}</h2>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <label className={label}>{t.stringType}</label>
+                    <select
+                      className={input}
+                      value={form.stringType}
+                      onChange={(e) =>
+                        update("stringType", e.target.value as RecommendPayload["stringType"])
+                      }
+                    >
+                      <option value="dontknow">{t.dontKnow}</option>
+                      <option value="poly">{t.poly}</option>
+                      <option value="multi">{t.multi}</option>
+                      <option value="hybrid">{t.hybrid}</option>
+                    </select>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <label className={label}>{t.breaksOften}</label>
+                    <select
+                      className={input}
+                      value={form.breaksOften}
+                      onChange={(e) =>
+                        update("breaksOften", e.target.value as RecommendPayload["breaksOften"])
+                      }
+                    >
+                      <option value="dontknow">{t.dontKnow}</option>
+                      <option value="yes">{t.yes}</option>
+                      <option value="no">{t.no}</option>
+                    </select>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <label className={label}>{t.stringPriority}</label>
+                    <select
+                      className={input}
+                      value={form.stringPriority}
+                      onChange={(e) =>
+                        update(
+                          "stringPriority",
+                          e.target.value as RecommendPayload["stringPriority"]
+                        )
+                      }
+                    >
+                      <option value="spin">{t.goalSpin}</option>
+                      <option value="control">{t.goalControl}</option>
+                      <option value="power">{t.goalPower}</option>
+                      <option value="comfort">{t.goalComfort}</option>
+                    </select>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <label className={label}>{t.tensionCurrent}</label>
+                    <input
+                      type="number"
+                      className={input}
+                      min={16}
+                      max={30}
+                      value={form.tensionKg}
+                      onChange={(e) => update("tensionKg", Number(e.target.value))}
+                    />
+                  </div>
                 </div>
-
-                <div className="grid gap-2 md:col-span-2">
-                  <label className={label}>{t.racketFeel}</label>
-                  <select
-                    className={input}
-                    value={form.racketFeel}
-                    onChange={(e) =>
-                      update("racketFeel", e.target.value as RecommendPayload["racketFeel"])
-                    }
-                  >
-                    <option value="power">{t.feelPower}</option>
-                    <option value="comfort">{t.feelComfort}</option>
-                    <option value="spin">{t.feelSpin}</option>
-                    <option value="mix">{t.feelMix}</option>
-                  </select>
-                </div>
-              </div>
-            </section>
-
-            <section className={card}>
-              <h2 className="text-lg font-semibold">{t.string}</h2>
-
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <label className={label}>{t.stringType}</label>
-                  <select
-                    className={input}
-                    value={form.stringType}
-                    onChange={(e) =>
-                      update("stringType", e.target.value as RecommendPayload["stringType"])
-                    }
-                  >
-                    <option value="dontknow">{t.dontKnow}</option>
-                    <option value="poly">{t.poly}</option>
-                    <option value="multi">{t.multi}</option>
-                    <option value="hybrid">{t.hybrid}</option>
-                  </select>
-                </div>
-
-                <div className="grid gap-2">
-                  <label className={label}>{t.breaksOften}</label>
-                  <select
-                    className={input}
-                    value={form.breaksOften}
-                    onChange={(e) =>
-                      update("breaksOften", e.target.value as RecommendPayload["breaksOften"])
-                    }
-                  >
-                    <option value="dontknow">{t.dontKnow}</option>
-                    <option value="yes">{t.yes}</option>
-                    <option value="no">{t.no}</option>
-                  </select>
-                </div>
-
-                <div className="grid gap-2">
-                  <label className={label}>{t.stringPriority}</label>
-                  <select
-                    className={input}
-                    value={form.stringPriority}
-                    onChange={(e) =>
-                      update(
-                        "stringPriority",
-                        e.target.value as RecommendPayload["stringPriority"]
-                      )
-                    }
-                  >
-                    <option value="spin">{t.goalSpin}</option>
-                    <option value="control">{t.goalControl}</option>
-                    <option value="power">{t.goalPower}</option>
-                    <option value="comfort">{t.goalComfort}</option>
-                  </select>
-                </div>
-
-                <div className="grid gap-2">
-                  <label className={label}>{t.tensionCurrent}</label>
-                  <input
-                    type="number"
-                    className={input}
-                    min={16}
-                    max={30}
-                    value={form.tensionKg}
-                    onChange={(e) => update("tensionKg", Number(e.target.value))}
-                  />
-                </div>
-              </div>
-            </section>
+              </section>
+            )}
 
             <div className="rounded-3xl border border-white/15 bg-gradient-to-r from-white/10 to-white/5 p-6">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -969,6 +1017,7 @@ export default function Home() {
               <p className="mt-2 text-sm text-red-100/90">{ai.error}</p>
             </section>
           )}
+
           <section className="mt-16 rounded-3xl border border-white/15 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur">
             <h2 className="text-lg font-semibold text-white">
               {lang === "fr"

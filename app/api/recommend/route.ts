@@ -11,6 +11,10 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
+function clampInt(x: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, Math.round(x)));
+}
+
 function round05(x: number) {
   return Math.round(x * 2) / 2;
 }
@@ -50,7 +54,7 @@ function fftToLevelScore(rank: string): number {
 
 function weightProximityScore(targetG: number, racketG: number) {
   const diff = Math.abs(targetG - racketG);
-  const score = 1 - diff / 30; // diff 30 => 0
+  const score = 1 - diff / 30;
   return clamp(score, 0, 1);
 }
 
@@ -63,6 +67,44 @@ function headSizeScore(wanted: number, head: number) {
 }
 
 /**
+ * Poids conseillé par le moteur.
+ * Si première raquette, on calcule une reco backend plus cohérente
+ * plutôt que de dépendre d'une pseudo-préférence utilisateur.
+ */
+function recommendedWeightG(input: any) {
+  const firstRacket = Boolean(input?.firstRacket);
+  const armPain = Boolean(input?.armPain);
+  const sex = String(input?.sex ?? "prefer_not");
+  const age = Number(input?.age ?? 25);
+  const height = Number(input?.heightCm ?? 175);
+  const frequency = String(input?.frequency ?? "3-4");
+  const rankScore = fftToLevelScore(String(input?.fftRank ?? "30"));
+
+  if (firstRacket) {
+    let w = 300;
+
+    if (rankScore <= 4.5) w = 285;
+    else if (rankScore <= 6) w = 290;
+    else w = 295;
+
+    if (height >= 185) w += 5;
+    if (sex === "female") w -= 5;
+    if (armPain) w -= 5;
+    if (age >= 40) w -= 5;
+    if (frequency === "5+" && rankScore >= 6.5) w += 5;
+
+    return clampInt(w, 285, 300);
+  }
+
+  const pref = Number(input?.targetWeight ?? 300);
+  if (!Number.isNaN(pref) && pref >= 285 && pref <= 315) {
+    return clampInt(pref, 285, 315);
+  }
+
+  return 300;
+}
+
+/**
  * Tension recommandée
  */
 function recommendedTensionKg(input: any) {
@@ -70,6 +112,18 @@ function recommendedTensionKg(input: any) {
   const armPain = Boolean(input?.armPain);
   const stringType = String(input?.stringType ?? "dontknow");
   const ref = Number(input?.tensionKg ?? 23);
+  const firstRacket = Boolean(input?.firstRacket);
+
+  // mode première raquette : logique simple et plus confort
+  if (firstRacket) {
+    if (armPain) return 21;
+
+    if (stringType === "multi") return 23;
+    if (stringType === "hybrid") return 22;
+    if (stringType === "poly") return 21.5;
+
+    return 22;
+  }
 
   let t = 23;
   if (!Number.isNaN(ref) && ref >= 16 && ref <= 30) t = ref;
@@ -99,6 +153,7 @@ function racketWeights(input: any) {
   const frequency = String(input?.frequency ?? "3-4");
   const armPain = Boolean(input?.armPain);
   const age = Number(input?.age ?? 25);
+  const firstRacket = Boolean(input?.firstRacket);
 
   let wPower = 1;
   let wSpin = 1;
@@ -170,6 +225,15 @@ function racketWeights(input: any) {
   if (armPain) wComfort += 1.2;
   if (age >= 40) wComfort += 0.2;
 
+  // première raquette
+  if (firstRacket) {
+    wComfort += 1.2;
+    wPower += 0.8;
+    wControl -= 0.3;
+  }
+
+  wControl = Math.max(0.1, wControl);
+
   const sum = wPower + wSpin + wControl + wComfort;
 
   return {
@@ -191,6 +255,7 @@ function stringWeights(input: any) {
   const style = String(input?.style ?? "mix");
   const frequency = String(input?.frequency ?? "3-4");
   const age = Number(input?.age ?? 25);
+  const firstRacket = Boolean(input?.firstRacket);
 
   let wPower = 1;
   let wSpin = 1;
@@ -236,8 +301,17 @@ function stringWeights(input: any) {
     wDur += 0.2;
   }
 
+  if (firstRacket) {
+    wComfort += 1.4;
+    wPower += 0.5;
+    wDur -= 0.2;
+    wSpin -= 0.1;
+  }
+
   wComfort = Math.max(0.1, wComfort);
   wDur = Math.max(0.1, wDur);
+  wSpin = Math.max(0.1, wSpin);
+  wControl = Math.max(0.1, wControl);
 
   const sum = wPower + wSpin + wControl + wComfort + wDur;
 
@@ -270,8 +344,17 @@ export async function POST(req: Request) {
     const rw = racketWeights(input);
     const sw = stringWeights(input);
 
-    const targetWeightPref = clamp(Number(input?.targetWeight ?? 300), 270, 330);
-    const targetWeightForDb = clamp(Math.round(targetWeightPref / 5) * 5, 270, 320);
+    const recommendedWeight = recommendedWeightG(input);
+
+    const targetWeightPref = Boolean(input?.firstRacket)
+      ? recommendedWeight
+      : clamp(Number(input?.targetWeight ?? 300), 270, 330);
+
+    const targetWeightForDb = clamp(
+      Math.round(targetWeightPref / 5) * 5,
+      270,
+      320
+    );
 
     const rackets = await loadJson<any[]>("data/rackets.json");
     const strings = await loadJson<any[]>("data/strings.json");
@@ -311,11 +394,15 @@ export async function POST(req: Request) {
 
       let beginnerAdj = 0;
       if (firstRacket) {
-        if (r.headSize >= 100) beginnerAdj += 0.6;
-        if (r.comfort >= 7) beginnerAdj += 0.6;
-        if (r.control >= 9) beginnerAdj -= 0.4;
-        if (r.weight >= 305) beginnerAdj -= 0.4;
-        if (r.headSize <= 98 && r.control >= 9) beginnerAdj -= 0.8;
+        if (r.headSize >= 100) beginnerAdj += 1.0;
+        if (r.headSize >= 102) beginnerAdj += 0.3;
+        if (r.comfort >= 7) beginnerAdj += 1.0;
+        if (r.weight >= 285 && r.weight <= 300) beginnerAdj += 0.8;
+
+        if (r.control >= 9) beginnerAdj -= 0.8;
+        if (r.weight >= 305) beginnerAdj -= 1.0;
+        if (r.headSize <= 98) beginnerAdj -= 1.0;
+        if (r.headSize <= 98 && r.control >= 9) beginnerAdj -= 1.4;
       }
 
       let profileFit = 0;
@@ -336,24 +423,33 @@ export async function POST(req: Request) {
 
       let hardPenalty = 0;
 
-      // première raquette : éviter les cadres trop exigeants
-      if (firstRacket && r.weight >= 305 && r.headSize <= 98 && r.control >= 9) {
-        hardPenalty += 3;
+      // première raquette : éviter cadres exigeants
+      if (firstRacket && r.weight >= 305) {
+        hardPenalty += 1.8;
       }
-
-      // douleur au bras : éviter les cadres trop inconfortables
-      if (armPain && r.comfort <= 4) {
-        hardPenalty += 2;
+      if (firstRacket && r.headSize <= 98) {
+        hardPenalty += 1.5;
       }
-
-      // petit niveau : éviter certains cadres trop techniques
-      if (levelScore <= 5.5 && r.weight >= 305 && r.control >= 8.5) {
-        hardPenalty += 2;
-      }
-
-      // demande de tamis tolérant mais cadre précis/exigeant
-      if (wantedHead >= 100 && r.headSize <= 98 && firstRacket) {
+      if (firstRacket && r.control >= 9) {
         hardPenalty += 1.2;
+      }
+      if (firstRacket && r.weight >= 305 && r.headSize <= 98 && r.control >= 9) {
+        hardPenalty += 3.5;
+      }
+
+      // douleur bras
+      if (armPain && r.comfort <= 4) {
+        hardPenalty += 2.5;
+      }
+
+      // niveau faible
+      if (levelScore <= 5.5 && r.weight >= 305 && r.control >= 8.5) {
+        hardPenalty += 2.4;
+      }
+
+      // si utilisateur veut/nécessite tolérance
+      if (wantedHead >= 100 && r.headSize <= 98 && firstRacket) {
+        hardPenalty += 1.8;
       }
 
       const score =
@@ -382,7 +478,8 @@ export async function POST(req: Request) {
       const breaksOften = String(input?.breaksOften ?? "dontknow");
       const stringType = String(input?.stringType ?? "dontknow");
       const frequency = String(input?.frequency ?? "3-4");
-      const kind = String(s.kind ?? "");
+      const firstRacket = Boolean(input?.firstRacket);
+      const kind = String(s.kind ?? "").toLowerCase();
 
       let painPenalty = 0;
       if (armPain && kind === "poly" && s.comfort <= 5) painPenalty = 1.3;
@@ -400,21 +497,36 @@ export async function POST(req: Request) {
       if (frequency === "5+" && s.durability >= 7) profileFit += 0.25;
       if (armPain && s.comfort >= 7) profileFit += 0.4;
 
+      if (firstRacket) {
+        if (kind === "multi") profileFit += 1.4;
+        if (kind === "hybrid") profileFit += 0.6;
+        if (s.comfort >= 7) profileFit += 0.8;
+        if (s.power >= 6) profileFit += 0.2;
+      }
+
       let hardPenalty = 0;
 
-      // douleur au bras : on évite certains polys trop raides
       if (armPain && kind === "poly" && s.comfort <= 4) {
         hardPenalty += 2.2;
       }
 
-      // faible fréquence + poly très inconfortable
       if (frequency === "1-2" && kind === "poly" && s.comfort <= 4) {
         hardPenalty += 1.2;
       }
 
-      // si l'utilisateur veut explicitement du multi, on pénalise les polys raides
       if (stringType === "multi" && kind === "poly" && s.comfort <= 5) {
         hardPenalty += 1.4;
+      }
+
+      // logique première raquette
+      if (firstRacket && kind === "poly") {
+        hardPenalty += 1.6;
+      }
+      if (firstRacket && kind === "poly" && s.comfort <= 5) {
+        hardPenalty += 1.8;
+      }
+      if (firstRacket && kind === "poly" && frequency === "1-2") {
+        hardPenalty += 1.2;
       }
 
       const score =
@@ -440,6 +552,7 @@ export async function POST(req: Request) {
       rackets: topRackets,
       strings: topStrings,
       recommendedTension: tension,
+      recommendedWeightG: recommendedWeight,
       computed: {
         levelScore,
         targetWeightForDb,

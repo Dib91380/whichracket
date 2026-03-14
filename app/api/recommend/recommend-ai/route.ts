@@ -55,6 +55,22 @@ function fallbackTitleString(x: any) {
 function buildFallbackReasonsRacket(x: any, questionnaire: any, lang: Lang) {
   const reasons: string[] = [];
 
+  if (questionnaire?.firstRacket && x?.headSize >= 100) {
+    reasons.push(
+      lang === "fr"
+        ? "Profil plus tolérant et plus facile pour une première raquette."
+        : "More forgiving and easier to use for a first racket."
+    );
+  }
+
+  if (questionnaire?.firstRacket && x?.comfort >= 7) {
+    reasons.push(
+      lang === "fr"
+        ? "Option confortable et plus accessible pour bien démarrer."
+        : "Comfortable and more accessible option to start with."
+    );
+  }
+
   if (lang === "fr") {
     if (x?.spin >= 7 && questionnaire?.goal === "spin") {
       reasons.push("Bon match avec ta recherche de spin.");
@@ -89,11 +105,28 @@ function buildFallbackReasonsRacket(x: any, questionnaire: any, lang: Lang) {
     }
   }
 
-  return reasons.slice(0, 3);
+  return reasons.filter(Boolean).slice(0, 3);
 }
 
 function buildFallbackReasonsString(x: any, questionnaire: any, lang: Lang) {
   const reasons: string[] = [];
+  const kind = String(x?.kind ?? "").toLowerCase();
+
+  if (questionnaire?.firstRacket && kind === "multi") {
+    reasons.push(
+      lang === "fr"
+        ? "Choix plus souple et plus adapté pour débuter."
+        : "Softer and more beginner-friendly choice."
+    );
+  }
+
+  if (questionnaire?.firstRacket && x?.comfort >= 7) {
+    reasons.push(
+      lang === "fr"
+        ? "Plus confortable et plus facile à vivre pour une première configuration."
+        : "More comfortable and easier to use for a first setup."
+    );
+  }
 
   if (lang === "fr") {
     if (x?.spin >= 7 && questionnaire?.stringPriority === "spin") {
@@ -129,7 +162,7 @@ function buildFallbackReasonsString(x: any, questionnaire: any, lang: Lang) {
     }
   }
 
-  return reasons.slice(0, 3);
+  return reasons.filter(Boolean).slice(0, 3);
 }
 
 function buildFallbackOutput(body: any): AiOut {
@@ -182,6 +215,7 @@ export async function POST(req: Request) {
     const lang = getLang(body);
 
     const { questionnaire, rackets, strings, computed, recommendedWeightG } = body ?? {};
+    const firstRacket = Boolean(questionnaire?.firstRacket);
 
     if (!process.env.OPENAI_API_KEY?.trim()) {
       return NextResponse.json(buildFallbackOutput(body));
@@ -234,7 +268,10 @@ Règles importantes :
 - priorise les meilleurs _score
 - respecte goal, style, gameType, armPain, firstRacket, stringPriority, breaksOften, fftRank
 - si armPain = true, évite les options trop raides/inconfortables
-- si firstRacket = true, évite les setups trop exigeants
+- si firstRacket = true, considère l'utilisateur comme un joueur débutant / première vraie raquette
+- dans ce cas, privilégie la tolérance, le confort, la puissance facile et la polyvalence
+- dans ce cas, évite les cadres exigeants orientés contrôle pur, les petits tamis stricts et les setups trop techniques
+- dans ce cas, pour les cordages, privilégie si possible les options plus accessibles et plus confortables
 - pas de prix
 - pas de recommandation générique
 - pas plus de 3 reasons par item
@@ -276,7 +313,10 @@ Important rules:
 - prioritize the best _score values
 - respect goal, style, gameType, armPain, firstRacket, stringPriority, breaksOften, fftRank
 - if armPain = true, avoid overly harsh or uncomfortable options
-- if firstRacket = true, avoid overly demanding setups
+- if firstRacket = true, treat the user as a beginner / first serious racket buyer
+- in that case, prioritize forgiveness, comfort, easy power and versatility
+- in that case, avoid demanding control-oriented frames, strict small head sizes and overly technical setups
+- in that case, for strings, prefer more accessible and arm-friendly options when possible
 - do not mention price
 - do not give generic recommendations
 - no more than 3 reasons per item
@@ -307,6 +347,11 @@ Formatting rules:
       {
         lang,
         questionnaire,
+        beginnerContext: firstRacket
+          ? lang === "fr"
+            ? "Première raquette: il faut orienter vers un setup accessible, tolérant et confortable."
+            : "First racket: recommendations should favor an accessible, forgiving and comfortable setup."
+          : null,
         recommendedWeightG: fallbackWeight,
         recommendedTensionKg: fallbackTension,
         computed,
