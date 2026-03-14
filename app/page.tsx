@@ -216,7 +216,7 @@ const translations = {
     alertError: "Erreur, ouvre F12 pour voir le détail.",
 
     footer:
-      "Projet personnel à but expérimental, sans affiliation avec aucune marque, feedback sur instagram: nicolas.dib_",
+      "Projet personnel à but expérimental, sans affiliation avec aucune marque, feedback ou collboration bienvenue sur instagram : nicolas.dib_ ou par email : nicolas.dib@icloud.com",
   },
   en: {
     badge: "Tennis recommendation engine",
@@ -488,8 +488,13 @@ export default function Home() {
               </div>
             </div>
 
-            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
-              {t.mainTitle} <span className="text-lime-300">🎾</span>
+            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl flex items-center gap-2">
+              {t.mainTitle}
+              <img
+                src="/rackets.png"
+                alt="tennis rackets"
+                className="h-10 w-10"
+              />
             </h1>
 
             <button
@@ -964,11 +969,54 @@ export default function Home() {
               <p className="mt-2 text-sm text-red-100/90">{ai.error}</p>
             </section>
           )}
+          <section className="mt-16 rounded-3xl border border-white/15 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur">
+            <h2 className="text-lg font-semibold text-white">
+              {lang === "fr"
+                ? "Comment choisir la bonne raquette de tennis"
+                : "How to choose the right tennis racket"}
+            </h2>
+
+            <div className="mt-4 space-y-4 text-sm leading-7 text-white/75">
+              <p>
+                {lang === "fr"
+                  ? "Whichracket est un outil intelligent de recommandation de raquette et de cordage de tennis. Il aide les joueurs à trouver la configuration la plus adaptée selon leur niveau, leur style de jeu, leurs préférences et leur profil physique."
+                  : "Whichracket is a smart tennis racket and string recommendation tool. It helps players find the best setup based on their level, playing style, preferences and physical profile."}
+              </p>
+
+              <p>
+                {lang === "fr"
+                  ? "Choisir la bonne raquette de tennis dépend de plusieurs critères comme le poids, la taille du tamis, le plan de cordage, le confort et le type de jeu recherché. Le questionnaire ci-dessus analyse ces éléments pour proposer des recommandations cohérentes et personnalisées."
+                  : "Choosing the right tennis racket depends on several factors such as weight, head size, string pattern, comfort and playing style. The questionnaire above analyzes these factors to suggest personalized and relevant recommendations."}
+              </p>
+
+              <p>
+                {lang === "fr"
+                  ? "Que tu sois débutant, joueur intermédiaire ou compétiteur confirmé, whichracket te permet de trouver plus facilement une raquette et un cordage adaptés à ton jeu."
+                  : "Whether you are a beginner, intermediate player or advanced competitor, whichracket helps you more easily find a racket and string setup that fits your game."}
+              </p>
+            </div>
+          </section>
 
           {data && null}
 
-          <div className="mt-10 text-center text-xs text-white/50">
-            {t.footer}
+          <div className="mt-10 space-y-3 text-center text-xs text-white/50">
+            <div>
+              {t.footer}
+            </div>
+
+            <div>
+              © 2026 Whichracket. {lang === "fr" ? "Tous droits réservés." : "All rights reserved."}
+            </div>
+
+            <div className="flex items-center justify-center gap-4">
+              <a href="/legal" className="transition hover:text-white">
+                {lang === "fr" ? "Mentions légales" : "Legal notice"}
+              </a>
+              <span>•</span>
+              <a href="/privacy" className="transition hover:text-white">
+                Privacy Policy
+              </a>
+            </div>
           </div>
         </div>
       </div>
