@@ -216,7 +216,7 @@ const translations = {
     alertError: "Erreur, ouvre F12 pour voir le détail.",
 
     footer:
-      "Projet personnel à but expérimental, sans affiliation avec aucune marque, feedback ou collboration bienvenue sur instagram : nicolas.dib_ ou par email : nicolas.dib@icloud.com",
+      "Projet personnel à but expérimental, sans affiliation avec aucune marque, feedback ou collboration bienvenue sur instagram : nicolas.dib_ ou par email : nicolas.dib.nd@icloud.com",
   },
   en: {
     badge: "Tennis recommendation engine",

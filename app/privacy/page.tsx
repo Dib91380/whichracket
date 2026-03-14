@@ -6,7 +6,7 @@ export default function PrivacyPage() {
 
         <div className="mt-6 space-y-4 text-sm leading-7 text-white/80">
           <p>
-            whichracket may use privacy-friendly analytics and performance monitoring
+            Whichracket may use privacy-friendly analytics and performance monitoring
             tools in order to understand site usage and improve the experience.
           </p>
 
